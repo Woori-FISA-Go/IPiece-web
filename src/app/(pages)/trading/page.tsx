@@ -52,29 +52,35 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       {/* <NavTabs /> */}
 
-      <main className="flex-1 p-6 md:p-8">
-        <div className="mb-6">
-          <span className="inline-flex items-center justify-center text-foreground font-medium px-3 py-1 rounded text-sm">
-            {allItems.length}개
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {displayedItems.map((item) => (
-            <IPCard key={item.id} item={item} onLikeToggle={handleLikeToggle} />
-          ))}
-        </div>
-
-        {hasMore && (
-          <div ref={sentinelRef} className="flex justify-center py-8">
-            {isLoading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                <span>로딩 중...</span>
-              </div>
-            )}
+      <main className="flex-1 py-6 md:py-8">
+        <div className="mx-auto w-full max-w-[1560px] px-6 lg:px-12 xl:px-16">
+          <div className="mb-6">
+            <span className="inline-flex items-center justify-center text-foreground font-medium px-3 py-1 rounded text-sm">
+              {allItems.length}개
+            </span>
           </div>
-        )}
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {displayedItems.map((item) => (
+              <IPCard
+                key={item.id}
+                item={item}
+                onLikeToggle={handleLikeToggle}
+              />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div ref={sentinelRef} className="flex justify-center py-8">
+              {isLoading && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <span>로딩 중...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* <Footer /> */}
