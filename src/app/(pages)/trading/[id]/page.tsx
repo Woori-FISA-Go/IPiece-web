@@ -6,6 +6,13 @@ import { Card, CardContent } from '@/app/(pages)/trading/components/card';
 import { TradingChart } from '@/app/(pages)/trading/components/trade/chart';
 import { OrderForm } from '@/app/(pages)/trading/components/trade/order-form';
 import { OrderBook } from '@/app/(pages)/trading/components/trade/orderbook';
+import {
+  RevenueInfoCard,
+  IpIntroCard,
+} from '@/app/(pages)/trading/components/trading/info-panel';
+import { HeroPanel } from '@/app/(pages)/trading/components/trading/hero-panel';
+import { NoticePanel } from '@/app/(pages)/trading/components/trading/notice-panel';
+import { MOCK_INFO } from '@/lib/mock-info';
 import { MOCK_ITEMS } from '@/lib/mock-trading';
 import styles from './heart-icon.module.css';
 
@@ -150,7 +157,7 @@ export default function TradingDetailPage() {
 
       {/* Main Content */}
       {activeTab === 'chart' && (
-        <main className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-6">
+        <main className="mx-auto w-full max-w-[1680px] px-6 lg:px-12 py-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[620px_320px_minmax(0,1fr)] lg:[--panel-height:640px] items-stretch">
             {/* Chart - Left Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[620px]">
@@ -171,12 +178,17 @@ export default function TradingDetailPage() {
       )}
 
       {activeTab === 'info' && (
-        <main className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-6">
-          <Card className="rounded-2xl">
-            <CardContent className="p-8 text-center text-gray-500">
-              종목정보·공시 페이지 준비 중입니다.
-            </CardContent>
-          </Card>
+        <main className="mx-auto w-full max-w-[1680px] px-6 lg:px-12 py-6">
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)] items-start">
+              <RevenueInfoCard info={MOCK_INFO} />
+              <HeroPanel info={MOCK_INFO} />
+            </div>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
+              <IpIntroCard info={MOCK_INFO} />
+              <NoticePanel />
+            </div>
+          </div>
         </main>
       )}
     </div>

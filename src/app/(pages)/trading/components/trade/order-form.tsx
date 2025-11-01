@@ -20,6 +20,14 @@ type OrderSummary = {
   averagePrice: number;
 };
 
+type PendingOrder = {
+  id: string;
+  side: Exclude<OrderTab, 'pending'>;
+  price: number;
+  quantity: number;
+  createdAt: number;
+};
+
 export function OrderForm({ currentPrice }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
   const [orderType] = useState('limit');
@@ -32,14 +40,28 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
     quantity: 15,
     averagePrice: 60_933,
   });
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
 
   const handleSubmit = () => {
-    console.log('[v0] Order submitted:', {
-      activeTab,
-      orderType,
+    if (activeTab === 'pending') return;
+
+    const newOrder: PendingOrder = {
+      id: `${Date.now()}`,
+      side: activeTab,
       price,
       quantity,
+      createdAt: Date.now(),
+    };
+
+    setPendingOrders((prev) => [newOrder, ...prev]);
+    console.log('[v0] Order queued:', {
+      ...newOrder,
+      orderType,
+      total: newOrder.price * newOrder.quantity,
     });
+
+    setPrevTab(activeTab);
+    setActiveTab('pending');
   };
 
   const incrementPrice = () => setPrice((p) => p + 100);
@@ -51,6 +73,14 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
     `${value.toLocaleString('ko-KR')}원`;
 
   const formatRate = (value: number) => `${(value * 100).toFixed(1)}%`;
+  const formatTimestamp = (value: number) =>
+    new Date(value).toLocaleString('ko-KR', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
 
   const tabStyles = useMemo(() => {
     switch (activeTab) {
@@ -274,14 +304,63 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
 
           {activeTab === 'pending' && (
             <div
-              className={`flex flex-1 flex-col items-center gap-4 py-10 text-sm text-[#6B7280] ${
+              className={`flex flex-1 flex-col gap-3 pt-2 pb-4 text-sm text-[#6B7280] ${
                 dir === 'right' ? 'slide-enter-right' : 'slide-enter-left'
               }`}
             >
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#F1F5F9]">
-                <span className="text-2xl text-[#94A3B8]">🗂️</span>
-              </div>
-              <p>대기중인 주문이 없어요</p>
+              {pendingOrders.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6 text-sm">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#F1F5F9]">
+                    <span className="text-2xl text-[#94A3B8]">🗂️</span>
+                  </div>
+                  <p>대기중인 주문이 없어요</p>
+                </div>
+              ) : (
+                <div className="max-h-[240px] space-y-3 overflow-y-auto pr-1">
+                  {pendingOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="rounded-xl border bg-white px-4 py-3 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-sm font-semibold ${
+                            order.side === 'buy' ? 'text-[#E94651]' : 'text-[#2675EB]'
+                          }`}
+                        >
+                          {order.side === 'buy' ? '매수' : '매도'} 주문
+                        </span>
+                        <span className="text-xs font-medium text-[#16A34A]">
+                          체결 대기
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2 text-xs text-[#6B7280]">
+                        <div className="flex justify-between">
+                          <span>가격</span>
+                          <span className="text-sm font-medium text-[#111827]">
+                            {formatCurrency(order.price)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>수량</span>
+                          <span className="text-sm font-medium text-[#111827]">
+                            {order.quantity.toLocaleString('ko-KR')}주
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>총 금액</span>
+                          <span className="text-sm font-semibold text-[#111827]">
+                            {formatCurrency(order.price * order.quantity)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 text-right text-[11px] text-[#9CA3AF]">
+                        {formatTimestamp(order.createdAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
