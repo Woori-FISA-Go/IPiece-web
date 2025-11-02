@@ -8,8 +8,17 @@ import {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
 } from 'react';
 import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import {
   MOCK_CANDLES_1D,
   MOCK_CANDLES_1M,
@@ -18,12 +27,6 @@ import {
 } from '@/lib/mock-trading';
 
 type Period = '1D' | '1W' | '1M';
-
-const DEFAULT_WINDOW_BY_PERIOD: Record<Period, number> = {
-  '1D': 60,
-  '1W': 40,
-  '1M': 36,
-};
 
 interface HoverPoint {
   candle: Candle;
@@ -34,7 +37,8 @@ interface HoverPoint {
 export function TradingChart() {
   const [period, setPeriod] = useState<Period>('1D');
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const chartAreaRef = useRef<HTMLDivElement>(null);
+  const chartScrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     active: boolean;
     pointerId: number | null;
@@ -47,23 +51,6 @@ export function TradingChart() {
     accumulated: 0,
   });
 
-  const [rangeStartByPeriod, setRangeStartByPeriod] = useState<
-    Record<Period, number>
-  >(() => {
-    const initial = {} as Record<Period, number>;
-    (['1D', '1W', '1M'] as Period[]).forEach((p) => {
-      const sourceLength =
-        p === '1D'
-          ? MOCK_CANDLES_1D.length
-          : p === '1W'
-            ? MOCK_CANDLES_1W.length
-            : MOCK_CANDLES_1M.length;
-      const baseWindow = Math.min(DEFAULT_WINDOW_BY_PERIOD[p], sourceLength);
-      initial[p] = Math.max(0, sourceLength - baseWindow);
-    });
-    return initial;
-  });
-
   const data =
     period === '1D'
       ? MOCK_CANDLES_1D
@@ -71,44 +58,40 @@ export function TradingChart() {
         ? MOCK_CANDLES_1W
         : MOCK_CANDLES_1M;
 
-  useEffect(() => {
-    const windowSize = Math.min(DEFAULT_WINDOW_BY_PERIOD[period], data.length);
-    const maxStart = Math.max(0, data.length - windowSize);
+  const visibleData = data;
 
-    setRangeStartByPeriod((prev) => {
-      const previousStart = prev[period];
-      const nextStart =
-        previousStart === undefined ? maxStart : Math.min(previousStart, maxStart);
-
-      if (nextStart === previousStart) {
-        if (previousStart === undefined) {
-          return { ...prev, [period]: maxStart };
-        }
-        return prev;
-      }
-
-      return { ...prev, [period]: nextStart };
-    });
-    setHoveredPoint(null);
-  }, [period, data.length]);
-
-  const windowSize = Math.min(DEFAULT_WINDOW_BY_PERIOD[period], data.length);
-  const maxStart = Math.max(0, data.length - windowSize);
-  const currentRangeStart = Math.min(
-    Math.max(rangeStartByPeriod[period] ?? maxStart, 0),
-    maxStart,
-  );
-  const rangeEnd = Math.min(currentRangeStart + windowSize, data.length);
-  const slicedData = data.slice(currentRangeStart, rangeEnd);
-  const visibleData = slicedData.length > 0 ? slicedData : data;
-
-  const minWidth = 620;
   const height = 320;
-  const padding = { top: 68, right: 92, bottom: 88, left: 40 };
-  const baseChartWidth = minWidth - padding.left - padding.right;
-  const chartWidth = baseChartWidth;
-  const svgWidth = minWidth;
+  const padding = { top: 68, right: 28, bottom: 88, left: 40 };
+  const defaultContainerWidth = 620;
+  const [containerWidth, setContainerWidth] = useState(defaultContainerWidth);
+  const pointSpacing = 24;
+  const baseCanvasWidth = Math.max(
+    containerWidth,
+    padding.left + padding.right + Math.max(visibleData.length - 1, 1) * pointSpacing,
+  );
+  const chartWidth = Math.max(0, baseCanvasWidth - padding.left - padding.right);
   const chartHeight = height - padding.top - padding.bottom;
+
+  useLayoutEffect(() => {
+    const element = chartScrollRef.current;
+    if (!element) return;
+
+    const updateDimensions = () => {
+      const width = element.clientWidth || defaultContainerWidth;
+      setContainerWidth(width);
+    };
+
+    updateDimensions();
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const scroller = chartScrollRef.current;
+    if (!scroller) return;
+    scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
+  }, [period, data.length, baseCanvasWidth]);
 
   const prices = visibleData.map((d) => d.c);
   const minPrice = Math.min(...prices) * 0.98;
@@ -124,25 +107,9 @@ export function TradingChart() {
     padding.top +
     ((maxPrice - price) / (maxPrice - minPrice || 1)) * chartHeight;
 
-  const linePath = visibleData
-    .map((d, i) => {
-      const x = xScale(i);
-      const y = yScale(d.c);
-      return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-    })
-    .join(' ');
-
-  const areaPath =
-    linePath +
-    ` L ${xScale(visibleData.length - 1)} ${height - padding.bottom} L ${xScale(0)} ${height - padding.bottom} Z`;
-
-  const yLabels = useMemo(
-    () =>
-      [maxPrice, (maxPrice + minPrice) / 2, minPrice].map((price) => ({
-        price: Math.round(price),
-        y: yScale(price),
-      })),
-    [maxPrice, minPrice, yScale],
+  const yTicks = useMemo(
+    () => [minPrice, (minPrice + maxPrice) / 2, maxPrice],
+    [maxPrice, minPrice],
   );
 
   const axisLabels = useMemo(() => {
@@ -156,31 +123,37 @@ export function TradingChart() {
     });
   }, [visibleData]);
 
-  const shiftWindow = useCallback(
-    (steps: number) => {
-      if (steps === 0 || data.length <= windowSize) return;
-
-      setRangeStartByPeriod((prev) => {
-        const previous = prev[period] ?? maxStart;
-        const next = Math.min(Math.max(previous - steps, 0), maxStart);
-        if (next === previous) return prev;
-        return { ...prev, [period]: next };
-      });
-    },
-    [data.length, maxStart, period, windowSize],
-  );
+  const tooltipStyle = useMemo(() => {
+    if (!hoveredPoint) return null;
+    const safeTop = Math.max(padding.top + 12, hoveredPoint.y - 48);
+    const maxPoint = baseCanvasWidth - padding.right - 8;
+    const minPoint = padding.left + 8;
+    let left = hoveredPoint.x;
+    let translateX = '-50%';
+    if (left > maxPoint - 60) {
+      left = Math.min(maxPoint, left);
+      translateX = '-100%';
+    } else if (left < minPoint + 60) {
+      left = Math.max(minPoint, left);
+      translateX = '0';
+    }
+    return {
+      left: `${left}px`,
+      top: `${safeTop}px`,
+      transform: `translate(${translateX}, -100%)`,
+    } as React.CSSProperties;
+  }, [hoveredPoint, baseCanvasWidth, padding.left, padding.right, padding.top]);
 
   const updateHover = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!svgRef.current) return;
+    (clientX: number, clientY: number, rect: DOMRect | null, scrollLeft = 0) => {
+      if (!rect || chartWidth <= 0) return;
 
-      const rect = svgRef.current.getBoundingClientRect();
       const localX = clientX - rect.left;
       const localY = clientY - rect.top;
 
       if (
         localX < padding.left ||
-        localX > svgWidth - padding.right ||
+        localX > baseCanvasWidth - padding.right ||
         localY < padding.top ||
         localY > height - padding.bottom
       ) {
@@ -188,7 +161,7 @@ export function TradingChart() {
         return;
       }
 
-      const relativeX = localX - padding.left;
+      const relativeX = localX - padding.left + scrollLeft;
       const index =
         visibleData.length > 1
           ? Math.round((relativeX / chartWidth) * (visibleData.length - 1))
@@ -211,8 +184,8 @@ export function TradingChart() {
       height,
       padding.bottom,
       padding.left,
+      padding.right,
       padding.top,
-      svgWidth,
       visibleData,
       xScale,
       yScale,
@@ -228,7 +201,11 @@ export function TradingChart() {
         accumulated: 0,
       };
       e.currentTarget.setPointerCapture(e.pointerId);
-      updateHover(e.clientX, e.clientY);
+      const rect =
+        chartAreaRef.current?.getBoundingClientRect() ??
+        e.currentTarget.getBoundingClientRect();
+      const scrollLeft = chartScrollRef.current?.scrollLeft ?? 0;
+      updateHover(e.clientX, e.clientY, rect, scrollLeft);
     },
     [updateHover],
   );
@@ -237,22 +214,22 @@ export function TradingChart() {
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (drag.active) {
-        const movement = e.clientX - drag.lastX;
-        drag.lastX = e.clientX;
-        drag.accumulated += movement;
-
-        const threshold = 56;
-        const steps = Math.trunc(drag.accumulated / threshold);
-
-        if (steps !== 0) {
-          shiftWindow(steps);
-          drag.accumulated -= steps * threshold;
+        const scroller = chartScrollRef.current;
+        if (scroller) {
+          const delta = drag.lastX - e.clientX;
+          scroller.scrollLeft = Math.max(0, scroller.scrollLeft + delta);
         }
+        drag.lastX = e.clientX;
+        drag.accumulated = 0;
       }
 
-      updateHover(e.clientX, e.clientY);
+      const rect =
+        chartAreaRef.current?.getBoundingClientRect() ??
+        e.currentTarget.getBoundingClientRect();
+      const scrollLeft = chartScrollRef.current?.scrollLeft ?? 0;
+      updateHover(e.clientX, e.clientY, rect, scrollLeft);
     },
-    [shiftWindow, updateHover],
+    [updateHover],
   );
 
   const endDrag = useCallback((target: HTMLDivElement | null) => {
@@ -275,7 +252,11 @@ export function TradingChart() {
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       endDrag(e.currentTarget);
-      updateHover(e.clientX, e.clientY);
+      const rect =
+        chartAreaRef.current?.getBoundingClientRect() ??
+        e.currentTarget.getBoundingClientRect();
+      const scrollLeft = chartScrollRef.current?.scrollLeft ?? 0;
+      updateHover(e.clientX, e.clientY, rect, scrollLeft);
     },
     [endDrag, updateHover],
   );
@@ -311,111 +292,135 @@ export function TradingChart() {
         </div>
 
         <div
-          className="relative -mx-4 flex-1 select-none overflow-hidden px-2 py-2 pb-6"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerLeave}
-          onPointerCancel={handlePointerLeave}
+        ref={chartScrollRef}
+        className="chart-scroll relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
+        style={{ scrollbarWidth: 'none' }}
         >
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${svgWidth} ${height}`}
-            className="h-full min-h-[260px]"
-            width="100%"
+          <div
+            ref={chartAreaRef}
+            className="relative h-full"
+            style={{ height, width: baseCanvasWidth }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onPointerCancel={handlePointerLeave}
           >
-            <defs>
-              <linearGradient
-                id="chartGradient"
-                x1="0%"
-                y1="0%"
-                x2="0%"
-                y2="100%"
-              >
-                <stop offset="0%" stopColor="#1A4DE5" stopOpacity="0.68" />
-                <stop offset="100%" stopColor="#1A4DE5" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-
-            {yLabels.map((label, i) => (
-              <line
-                key={`grid-${i}`}
-                x1={padding.left}
-                y1={label.y}
-                x2={svgWidth - padding.right}
-                y2={label.y}
-                stroke="#E5E7EB"
-                strokeWidth="1"
-                strokeDasharray="4 4"
+            <AreaChart
+              width={baseCanvasWidth}
+              height={height}
+              data={visibleData}
+              margin={{
+                top: padding.top,
+                right: padding.right,
+                bottom: padding.bottom,
+                left: padding.left,
+              }}
+            >
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1A4DE5" stopOpacity={0.68} />
+                  <stop offset="100%" stopColor="#1A4DE5" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" vertical={false} />
+              <XAxis dataKey="t" hide />
+              <YAxis
+                dataKey="c"
+                axisLine={false}
+                tickLine={false}
+                ticks={yTicks}
+                domain={[minPrice, maxPrice]}
+                tickFormatter={(value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`}
+                tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
+                orientation="right"
+                width={28}
+                tickMargin={0}
               />
-            ))}
-
-            <path d={areaPath} fill="url(#chartGradient)" />
-
-            <path d={linePath} fill="none" stroke="#1A4DE5" strokeWidth="1.25" />
-
-            {yLabels.map((label, i) => (
-              <text
-                key={`ylabel-${i}`}
-                x={svgWidth - padding.right + 10}
-                y={label.y}
-                fill="#6B7280"
-                fontSize="10"
-                dominantBaseline="middle"
-              >
-                {label.price.toLocaleString()}원
-              </text>
-            ))}
+              <RechartsTooltip cursor={false} wrapperStyle={{ display: 'none' }} />
+              <Area
+                type="monotone"
+                dataKey="c"
+                stroke="#1A4DE5"
+                strokeWidth={1.25}
+                fill="url(#chartGradient)"
+                isAnimationActive={false}
+                activeDot={false}
+                dot={false}
+              />
+            </AreaChart>
 
             {hoveredPoint && (
               <>
-                <line
-                  x1={hoveredPoint.x}
-                  y1={padding.top}
-                  x2={hoveredPoint.x}
-                  y2={height - padding.bottom}
-                  stroke="#9CA3AF"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
+                <div
+                  className="absolute"
+                  style={{
+                    left: `${hoveredPoint.x}px`,
+                    top: `${padding.top}px`,
+                    height: `${chartHeight}px`,
+                    borderLeft: '1px dashed #9CA3AF',
+                    transform: 'translateX(-0.5px)',
+                    pointerEvents: 'none',
+                  }}
                 />
-                <circle
-                  cx={hoveredPoint.x}
-                  cy={hoveredPoint.y}
-                  r="2.5"
-                  fill="#1A4DE5"
-                  stroke="white"
-                  strokeWidth="1.25"
+                <div
+                  className="absolute"
+                  style={{
+                    left: `${hoveredPoint.x - 5}px`,
+                    top: `${hoveredPoint.y - 5}px`,
+                    width: '10px',
+                    height: '10px',
+                    backgroundColor: '#1A4DE5',
+                    border: '1.25px solid #ffffff',
+                    borderRadius: '9999px',
+                    pointerEvents: 'none',
+                  }}
                 />
+                <div
+                  className="absolute"
+                  style={{
+                    left: `${hoveredPoint.x - 3}px`,
+                    top: `${hoveredPoint.y - 3}px`,
+                    width: '6px',
+                    height: '6px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '9999px',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {tooltipStyle && (
+                  <div
+                    className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
+                    style={tooltipStyle}
+                  >
+                    <div className="font-medium">{hoveredPoint.candle.t}</div>
+                    <div>거래량: {hoveredPoint.candle.v}</div>
+                    <div className="font-semibold">
+                      {hoveredPoint.candle.c.toLocaleString('ko-KR')} ₩
+                    </div>
+                  </div>
+                )}
               </>
             )}
-          </svg>
 
-          {hoveredPoint && (
             <div
-              className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
-              style={{
-                left: `${hoveredPoint.x}px`,
-                top: `${Math.max(padding.top, hoveredPoint.y - 48)}px`,
-                transform: 'translate(-50%, -100%)',
-              }}
+              className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500"
+              style={{ pointerEvents: 'none' }}
             >
-              <div className="font-medium">{hoveredPoint.candle.t}</div>
-              <div>거래량: {hoveredPoint.candle.v}</div>
-              <div className="font-semibold">
-                {hoveredPoint.candle.c.toLocaleString()} ₩
-              </div>
+              {axisLabels.map((label, index) => (
+                <span key={`${label}-${index}`} className="truncate">
+                  {label}
+                </span>
+              ))}
             </div>
-          )}
-
-          <div className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500">
-            {axisLabels.map((label, index) => (
-              <span key={`${label}-${index}`} className="truncate">
-                {label}
-              </span>
-            ))}
           </div>
         </div>
       </CardContent>
+      <style jsx>{`
+        .chart-scroll::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </Card>
   );
 }
