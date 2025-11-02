@@ -1,6 +1,7 @@
 'use client';
 
 import type React from 'react';
+import type { CSSProperties } from 'react';
 
 import {
   useCallback,
@@ -71,6 +72,8 @@ export function TradingChart() {
   );
   const chartWidth = Math.max(0, baseCanvasWidth - padding.left - padding.right);
   const chartHeight = height - padding.top - padding.bottom;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useLayoutEffect(() => {
     const element = chartScrollRef.current;
@@ -143,6 +146,7 @@ export function TradingChart() {
       transform: `translate(${translateX}, -100%)`,
     } as React.CSSProperties;
   }, [hoveredPoint, baseCanvasWidth, padding.left, padding.right, padding.top]);
+  const scrollStyle = useMemo<CSSProperties>(() => ({ scrollbarWidth: 'none' }), []);
 
   const updateHover = useCallback(
     (clientX: number, clientY: number, rect: DOMRect | null, scrollLeft = 0) => {
@@ -291,136 +295,143 @@ export function TradingChart() {
           </div>
         </div>
 
-        <div
-        ref={chartScrollRef}
-        className="chart-scroll relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
-        style={{ scrollbarWidth: 'none' }}
-        >
+        {mounted ? (
           <div
-            ref={chartAreaRef}
-            className="relative h-full"
-            style={{ height, width: baseCanvasWidth }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerLeave}
-            onPointerCancel={handlePointerLeave}
+            ref={chartScrollRef}
+            className="relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
+            style={scrollStyle}
           >
-            <AreaChart
-              width={baseCanvasWidth}
-              height={height}
-              data={visibleData}
-              margin={{
-                top: padding.top,
-                right: padding.right,
-                bottom: padding.bottom,
-                left: padding.left,
-              }}
-            >
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1A4DE5" stopOpacity={0.68} />
-                  <stop offset="100%" stopColor="#1A4DE5" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" vertical={false} />
-              <XAxis dataKey="t" hide />
-              <YAxis
-                dataKey="c"
-                axisLine={false}
-                tickLine={false}
-                ticks={yTicks}
-                domain={[minPrice, maxPrice]}
-                tickFormatter={(value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`}
-                tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
-                orientation="right"
-                width={28}
-                tickMargin={0}
-              />
-              <RechartsTooltip cursor={false} wrapperStyle={{ display: 'none' }} />
-              <Area
-                type="monotone"
-                dataKey="c"
-                stroke="#1A4DE5"
-                strokeWidth={1.25}
-                fill="url(#chartGradient)"
-                isAnimationActive={false}
-                activeDot={false}
-                dot={false}
-              />
-            </AreaChart>
-
-            {hoveredPoint && (
-              <>
-                <div
-                  className="absolute"
-                  style={{
-                    left: `${hoveredPoint.x}px`,
-                    top: `${padding.top}px`,
-                    height: `${chartHeight}px`,
-                    borderLeft: '1px dashed #9CA3AF',
-                    transform: 'translateX(-0.5px)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  className="absolute"
-                  style={{
-                    left: `${hoveredPoint.x - 5}px`,
-                    top: `${hoveredPoint.y - 5}px`,
-                    width: '10px',
-                    height: '10px',
-                    backgroundColor: '#1A4DE5',
-                    border: '1.25px solid #ffffff',
-                    borderRadius: '9999px',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  className="absolute"
-                  style={{
-                    left: `${hoveredPoint.x - 3}px`,
-                    top: `${hoveredPoint.y - 3}px`,
-                    width: '6px',
-                    height: '6px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '9999px',
-                    pointerEvents: 'none',
-                  }}
-                />
-                {tooltipStyle && (
-                  <div
-                    className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
-                    style={tooltipStyle}
-                  >
-                    <div className="font-medium">{hoveredPoint.candle.t}</div>
-                    <div>거래량: {hoveredPoint.candle.v}</div>
-                    <div className="font-semibold">
-                      {hoveredPoint.candle.c.toLocaleString('ko-KR')} ₩
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
             <div
-              className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500"
-              style={{ pointerEvents: 'none' }}
+              ref={chartAreaRef}
+              className="relative h-full"
+              style={{ height, width: baseCanvasWidth }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerLeave}
+              onPointerCancel={handlePointerLeave}
             >
-              {axisLabels.map((label, index) => (
-                <span key={`${label}-${index}`} className="truncate">
-                  {label}
-                </span>
-              ))}
+              <AreaChart
+                width={baseCanvasWidth}
+                height={height}
+                data={visibleData}
+                margin={{
+                  top: padding.top,
+                  right: padding.right,
+                  bottom: padding.bottom,
+                  left: padding.left,
+                }}
+              >
+                <defs>
+                  <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#1A4DE5" stopOpacity={0.68} />
+                    <stop offset="100%" stopColor="#1A4DE5" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" vertical={false} />
+                <XAxis dataKey="t" hide />
+                <YAxis
+                  dataKey="c"
+                  axisLine={false}
+                  tickLine={false}
+                  ticks={yTicks}
+                  domain={[minPrice, maxPrice]}
+                  tickFormatter={(value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`}
+                  tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
+                  orientation="right"
+                  width={28}
+                  tickMargin={0}
+                />
+                <RechartsTooltip cursor={false} wrapperStyle={{ display: 'none' }} />
+                <Area
+                  type="monotone"
+                  dataKey="c"
+                  stroke="#1A4DE5"
+                  strokeWidth={1.25}
+                  fill="url(#chartGradient)"
+                  isAnimationActive={false}
+                  activeDot={false}
+                  dot={false}
+                />
+              </AreaChart>
+
+              {hoveredPoint && (
+                <>
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${hoveredPoint.x}px`,
+                      top: `${padding.top}px`,
+                      height: `${chartHeight}px`,
+                      borderLeft: '1px dashed #9CA3AF',
+                      transform: 'translateX(-0.5px)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${hoveredPoint.x - 5}px`,
+                      top: `${hoveredPoint.y - 5}px`,
+                      width: '10px',
+                      height: '10px',
+                      backgroundColor: '#1A4DE5',
+                      border: '1.25px solid #ffffff',
+                      borderRadius: '9999px',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${hoveredPoint.x - 3}px`,
+                      top: `${hoveredPoint.y - 3}px`,
+                      width: '6px',
+                      height: '6px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '9999px',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  {tooltipStyle && (
+                    <div
+                      className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
+                      style={tooltipStyle}
+                    >
+                      <div className="font-medium">{hoveredPoint.candle.t}</div>
+                      <div>거래량: {hoveredPoint.candle.v}</div>
+                      <div className="font-semibold">
+                        {hoveredPoint.candle.c.toLocaleString('ko-KR')} ₩
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div
+                className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500"
+                style={{ pointerEvents: 'none' }}
+              >
+                {axisLabels.map((label, index) => (
+                  <span key={`${label}-${index}`} className="truncate">
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div
+            ref={chartScrollRef}
+            className="relative -mx-4 flex-1 select-none px-2 py-2 pb-6"
+            style={scrollStyle}
+          >
+            <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
+              차트 준비 중...
+            </div>
+          </div>
+        )}
       </CardContent>
-      <style jsx>{`
-        .chart-scroll::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </Card>
   );
 }

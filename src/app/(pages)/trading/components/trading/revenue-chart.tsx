@@ -45,6 +45,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
     accumulated: 0,
   });
   const [containerWidth, setContainerWidth] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   const totalLength = data.length;
   const defaultWindow = Math.min(12, Math.max(1, totalLength));
@@ -72,6 +73,10 @@ export function RevenueChart({ data }: RevenueChartProps) {
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   const windowSize = Math.min(12, Math.max(1, data.length));
@@ -274,6 +279,17 @@ export function RevenueChart({ data }: RevenueChartProps) {
     },
     [endDrag],
   );
+
+  if (!mounted) {
+    return (
+      <div
+        ref={containerRef}
+        className="flex h-[250px] w-full items-center justify-center rounded-lg bg-gradient-to-b from-blue-50/30 to-white text-xs text-gray-400"
+      >
+        차트 준비 중...
+      </div>
+    );
+  }
 
   return (
     <div

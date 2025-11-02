@@ -66,7 +66,7 @@ export function OrderBook() {
                 key={`ask-${row.price}`}
                 className="grid grid-cols-3 items-center rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[#F2F4F7]"
               >
-                <span className="pl-4 text-left font-semibold text-[#2675EB]">
+                <span className="pl-4 text-left font-semibold text-[#2563EB]">
                   {formatNumber(row.askQty!)}
                 </span>
                 <span className="flex items-center justify-center gap-2">
@@ -91,9 +91,7 @@ export function OrderBook() {
                 key={`bid-${row.price}`}
                 className="grid grid-cols-3 items-center rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[#F2F4F7]"
               >
-                <span className="pl-4 text-left font-semibold text-slate-300">
-                  —
-                </span>
+                <span className="pl-4 text-left font-semibold text-slate-300">—</span>
                 <span className="flex items-center justify-center gap-2">
                   <span className="font-semibold text-[#2675EB]">
                     {formatNumber(row.price)}
@@ -103,7 +101,7 @@ export function OrderBook() {
                     {row.changePct.toFixed(1)}%)
                   </span>
                 </span>
-                <span className="pr-4 text-right font-semibold text-[#E94651]">
+                <span className="pr-4 text-right font-semibold text-[#E53333]">
                   {formatNumber(row.bidQty!)}
                 </span>
               </div>
@@ -111,69 +109,48 @@ export function OrderBook() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
-          <div className="space-y-3 rounded-xl border bg-white/80 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                  상한가
-                </p>
-                <p className="text-sm font-semibold text-[#E94651]">
-                  {formatNumber(SUMMARY_STATS.upper)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                  하한가
-                </p>
-                <p className="text-sm font-semibold text-[#2675EB]">
-                  {formatNumber(SUMMARY_STATS.lower)}
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2">
+        <div className="grid grid-cols-2 gap-2 text-[12px] text-slate-500">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+              최근 1주일
+            </span>
+            <dl className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-500">전일종가</span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {formatNumber(SUMMARY_STATS.prevClose)}
-                </span>
+                <dt>최고가</dt>
+                <dd className="font-semibold text-[#E53333]">
+                  {formatNumber(SUMMARY_STATS.weekHigh)}
+                </dd>
               </div>
-            </div>
+              <div className="flex items-center justify-between">
+                <dt>최저가</dt>
+                <dd className="font-semibold text-[#2563EB]">
+                  {formatNumber(SUMMARY_STATS.weekLow)}
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          <div className="space-y-3 rounded-xl border bg-white/80 p-4">
-            <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+            <dl className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-500">
-                  이번 주 거래량
-                </span>
-                <span className="text-sm font-semibold text-slate-800">
-                  {formatNumber(SUMMARY_STATS.weeklyVolume.current)}주
-                </span>
+                <dt className="text-slate-500">상한가</dt>
+                <dd className="font-semibold text-[#E53333]">
+                  {formatNumber(SUMMARY_STATS.upper)}
+                </dd>
               </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>지난 주</span>
-                <span className="font-semibold text-slate-600">
-                  {formatNumber(SUMMARY_STATS.weeklyVolume.previous)}주
-                </span>
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-500">하한가</dt>
+                <dd className="font-semibold text-[#2563EB]">
+                  {formatNumber(SUMMARY_STATS.lower)}
+                </dd>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-slate-500">
-                최근 1주 최고가
-              </span>
-              <span className="text-sm font-semibold text-[#E94651]">
-                {formatNumber(SUMMARY_STATS.weekHigh)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-slate-500">
-                최근 1주 최저가
-              </span>
-              <span className="text-sm font-semibold text-[#2675EB]">
-                {formatNumber(SUMMARY_STATS.weekLow)}
-              </span>
-            </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-500">전일종가</dt>
+                <dd className="font-semibold text-slate-900">
+                  {formatNumber(SUMMARY_STATS.prevClose)}
+                </dd>
+              </div>
+            </dl>
           </div>
         </div>
       </CardContent>
