@@ -3,8 +3,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { Heart } from "lucide-react"
+import { Heart } from "lucide-react" // Keep this import for now, might be used elsewhere
 import type { InterestProduct } from "@/app/(pages)/mypage/InterestList"
+import { HEART_MASK_BASE_STYLE, buildHeartMaskStyle } from "@/components/common/heart-mask-style"
 
 interface InterestItemProps {
   product: InterestProduct
@@ -13,6 +14,11 @@ interface InterestItemProps {
 }
 
 export default function InterestItem({ product, isFavorite, onToggleFavorite }: InterestItemProps) {
+  const heartStyle = buildHeartMaskStyle(
+    isFavorite ? "#F9595F" : "#D1D5DB", // Filled red if favorite, gray if not
+    1
+  )
+
   return (
     <TableRow className="hover:bg-gray-50">
       {/* IP Info with Avatar and Name */}
@@ -61,7 +67,7 @@ export default function InterestItem({ product, isFavorite, onToggleFavorite }: 
           className="hover:bg-transparent"
           aria-label={isFavorite ? "관심 해제" : "관심 추가"}
         >
-          <Heart className={`w-6 h-6 ${isFavorite ? "fill-[#F9595F] text-[#F9595F]" : "text-gray-300"}`} />
+          <div style={heartStyle} />
         </Button>
       </TableCell>
     </TableRow>

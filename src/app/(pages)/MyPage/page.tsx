@@ -58,7 +58,7 @@ export default function MyPage() {
             {tabs.map((tab, index) => (
               <button
                 key={tab}
-                ref={el => tabsRef.current[index] = el}
+                ref={el => { tabsRef.current[index] = el; }}
                 onClick={() => setActiveTab(tab)}
                 className={`py-3 text-sm relative ${activeTab === tab ? "font-bold text-black" : "text-gray-500 hover:text-gray-700"}`}>
                 <span className="px-4 relative z-10">{tab}</span>
