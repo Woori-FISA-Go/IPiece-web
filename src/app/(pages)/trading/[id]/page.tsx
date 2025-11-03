@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { TradingChart } from '@/components/trade/chart';
-import { OrderForm } from '@/components/trade/order-form';
-import { OrderBook } from '@/components/trade/orderbook';
-import { RevenueInfoCard, IpIntroCard } from '@/components/trading/info-panel';
-import { HeroPanel } from '@/components/trading/hero-panel';
-import { NoticePanel } from '@/components/trading/notice-panel';
+import { TradingChart } from '@/components/trade-chart/chart';
+import { OrderForm } from '@/components/trade-chart/order-form';
+import { OrderBook } from '@/components/trade-chart/orderbook';
+import { RevenueInfoCard, IpIntroCard } from '@/components/trade-info/info-panel';
+import { ImageInfoPanel } from '@/components/trade-info/image-info-panel';
+import { NoticePanel } from '@/components/trade-info/notice-panel';
 import { MOCK_INFO } from '@/lib/mock-info';
 import { MOCK_ITEMS } from '@/lib/mock-trading';
-import styles from '@/components/heart-icon.module.css';
+import styles from '@/components/common/heart-icon.module.css';
 
 export default function TradingDetailPage() {
   const params = useParams();
@@ -179,7 +179,7 @@ export default function TradingDetailPage() {
           <div className="space-y-8">
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)] items-start">
               <RevenueInfoCard info={MOCK_INFO} />
-              <HeroPanel info={MOCK_INFO} />
+              <ImageInfoPanel info={MOCK_INFO} />
             </div>
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
               <IpIntroCard info={MOCK_INFO} />

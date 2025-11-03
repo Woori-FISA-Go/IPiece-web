@@ -5,11 +5,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import type { SecurityInfo } from '@/lib/mock-info';
 import { ExternalLink } from 'lucide-react';
 
-interface HeroPanelProps {
+interface ImageInfoPanelProps {
   info: SecurityInfo;
 }
 
-export function HeroPanel({ info }: HeroPanelProps) {
+export function ImageInfoPanel({ info }: ImageInfoPanelProps) {
   return (
     <Card className="flex h-[380px] flex-col rounded-2xl border shadow-sm overflow-hidden">
       <CardContent className="flex flex-1 flex-col p-6">

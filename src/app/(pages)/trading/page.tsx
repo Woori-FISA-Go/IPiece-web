@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 // TODO: 추푸 NavTabs, Footer 파일 추가
 // import { NavTabs } from '@/components/nav-tabs';
-import { IPCard } from '@/components/ip-card';
+import { TradeCard } from '@/components/trade/trade-card';
 // import { Footer } from '@/components/footer';
 import { sampleIPOData } from '@/lib/sample-data';
 
@@ -61,7 +61,11 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayedItems.map((item) => (
-            <IPCard key={item.id} item={item} onLikeToggle={handleLikeToggle} />
+            <TradeCard
+              key={item.id}
+              item={item}
+              onLikeToggle={handleLikeToggle}
+            />
           ))}
         </div>
 

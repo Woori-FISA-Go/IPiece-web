@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { OfferingStatusFilter } from '@/components/filters/offering-status-filter';
-import { OfferingCard } from '@/components/common/offering-card';
+import { OfferingStatusFilter } from '@/components/offering/offering-status-filter';
+import { OfferingCard } from '@/components/offering/offering-card';
 import { MOCK_OFFERINGS, type OfferingStatus } from '@/lib/mock-offering';
 
 export default function OfferingPage() {

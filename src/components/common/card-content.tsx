@@ -1,12 +1,12 @@
-import type React from 'react';
+import { isValidElement, type ReactNode } from 'react';
 
 interface CardContentProps {
   title: string;
   author: string;
   price: number;
-  badgeContent?: React.ReactNode;
+  badgeContent?: ReactNode;
   badgeType?: 'positive' | 'negative';
-  statusBadge?: React.ReactNode;
+  statusBadge?: ReactNode;
 }
 
 export function CardContent({
@@ -17,13 +17,15 @@ export function CardContent({
   badgeType,
   statusBadge,
 }: CardContentProps) {
-  const isProgressBadge =
-    badgeContent === undefined &&
-    statusBadge &&
-    typeof (statusBadge as React.ReactElement)?.props?.className === 'string' &&
-    ((statusBadge as React.ReactElement).props.className as string).includes(
-      'relative',
-    );
+  let badgeClassName = '';
+  if (badgeContent === undefined && isValidElement(statusBadge)) {
+    const className = (statusBadge.props as { className?: string })?.className;
+    if (typeof className === 'string') {
+      badgeClassName = className;
+    }
+  }
+
+  const isProgressBadge = badgeClassName.includes('relative');
 
   return (
     <div className="px-4 pt-4 pb-3">
@@ -32,7 +34,9 @@ export function CardContent({
           <div className="space-y-1.5">
             <div className="min-w-0">
               <h3 className="text-sm font-semibold truncate">{title}</h3>
-              <p className="text-xs text-muted-foreground truncate">by {author}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                by {author}
+              </p>
             </div>
             <div className="flex items-center gap-1.5">
               <img

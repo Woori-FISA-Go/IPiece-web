@@ -1,6 +1,6 @@
 'use client';
 
-import styles from '@/components/heart-icon.module.css';
+import styles from '@/components/common/heart-icon.module.css';
 
 const DEFAULT_CARD_IMAGE =
   'https://cafe24img.poxo.com/dinotaeng/web/product/medium/202402/1a99099cfbb60588334407718ab59b7c.png';

@@ -10,12 +10,12 @@ import styles from './heart-icon.module.css';
 const DEFAULT_CARD_IMAGE =
   'https://cafe24img.poxo.com/dinotaeng/web/product/medium/202402/1a99099cfbb60588334407718ab59b7c.png';
 
-interface IPCardProps {
+interface TradeCardProps {
   item: IPOItem;
   onLikeToggle: (id: string) => void;
 }
 
-export function IPCard({ item, onLikeToggle }: IPCardProps) {
+export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
   const router = useRouter();
 
   const isPositive = item.changePct >= 0;
