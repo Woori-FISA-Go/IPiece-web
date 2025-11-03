@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Image from "next/image"
-import noDataIcon from "@/assets/images/noDataIcon.svg"
+import noDataIcon from "@/assets/images/no_data_icon.svg"
 
 // Sample transaction data with detailed token information
 const transactions = [

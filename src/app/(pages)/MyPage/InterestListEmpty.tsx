@@ -1,6 +1,6 @@
 import Image from "next/image"
 // ⚠️ 파일명 띄어쓰기 ('image 153.svg')는 'image-153.svg' 등으로 변경하시는 것이 좋습니다.
-import interestEmptyIcon from "@/assets/images/image 153.svg"
+import interestEmptyIcon from "@/assets/images/interest_empty_icon.svg"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 

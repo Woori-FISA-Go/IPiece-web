@@ -9,7 +9,7 @@ import AssetTableRow from "./AssetTableRow"
 import dinosaurRobot from "@/assets/images/dinosaur-robot-character.jpg"
 import { StaticImageData } from "next/image"
 import Image from "next/image"
-import myHomeEmptyState from "@/assets/images/my-home-empty-state.png"
+import myHomeEmptyState from "@/assets/images/my_home_empty_state_icon.svg"
 
 interface AssetTableProps {
   hasAssets?: boolean

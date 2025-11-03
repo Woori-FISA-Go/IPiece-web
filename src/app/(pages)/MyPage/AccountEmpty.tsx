@@ -1,6 +1,6 @@
 // 1. next/image와 새 SVG 파일 import
 import Image from "next/image"
-import noDataIcon from "@/assets/images/noDataIcon.svg" // 👈 요청하신 파일 경로
+import noDataIcon from "@/assets/images/no_data_icon.svg" // 👈 요청하신 파일 경로
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"

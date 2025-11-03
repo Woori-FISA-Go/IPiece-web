@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import AccountHistoryTable from "@/app/(pages)/mypage/components/AccountHistoryTable"
-import AccountDepositPanel from "@/app/(pages)/mypage/components/AccountDepositPanel"
-import AccountFilter from "@/app/(pages)/mypage/components/AccountFilter"
+import AccountHistoryTable from "@/components/mypage/AccountHistoryTable"
+import AccountDepositPanel from "@/components/mypage/AccountDepositPanel"
+import AccountFilter from "@/components/mypage/AccountFilter"
 
 export default function AccountHistory({
   accountState,
