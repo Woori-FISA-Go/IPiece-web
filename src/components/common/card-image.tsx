@@ -1,6 +1,6 @@
 'use client';
 
-import styles from '@/components/common/heart-icon.module.css';
+import { buildHeartMaskStyle } from '@/components/common/heart-mask-style';
 
 const DEFAULT_CARD_IMAGE =
   'https://cafe24img.poxo.com/dinotaeng/web/product/medium/202402/1a99099cfbb60588334407718ab59b7c.png';
@@ -44,11 +44,11 @@ export function CardImage({
       >
         <span
           aria-hidden="true"
-          className={`${styles.heartMask} transition-opacity`}
-          style={{
-            backgroundColor: liked ? '#F9595F' : '#29293A',
-            opacity: liked ? 1 : 0.23,
-          }}
+          className="transition-opacity"
+          style={buildHeartMaskStyle(
+            liked ? '#F9595F' : '#29293A',
+            liked ? 1 : 0.23,
+          )}
         />
       </button>
 

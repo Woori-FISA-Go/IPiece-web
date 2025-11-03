@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { Card, CardContent } from '@/components/ui/card';
 import type { IPOItem } from '@/lib/sample-data';
-import styles from './heart-icon.module.css';
+import { buildHeartMaskStyle } from '@/components/common/heart-mask-style';
 
 const DEFAULT_CARD_IMAGE =
   'https://cafe24img.poxo.com/dinotaeng/web/product/medium/202402/1a99099cfbb60588334407718ab59b7c.png';
@@ -65,11 +65,11 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
           >
             <span
               aria-hidden="true"
-              className={`${styles.heartMask} transition-opacity`}
-              style={{
-                backgroundColor: item.liked ? '#F9595F' : '#29293A',
-                opacity: item.liked ? 1 : 0.23,
-              }}
+              className="transition-opacity"
+              style={buildHeartMaskStyle(
+                item.liked ? '#F9595F' : '#29293A',
+                item.liked ? 1 : 0.23,
+              )}
             />
           </button>
         </div>

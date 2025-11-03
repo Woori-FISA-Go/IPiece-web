@@ -3,15 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { TradingChart } from '@/components/trade-chart/chart';
-import { OrderForm } from '@/components/trade-chart/order-form';
-import { OrderBook } from '@/components/trade-chart/orderbook';
-import { RevenueInfoCard, IpIntroCard } from '@/components/trade-info/info-panel';
-import { ImageInfoPanel } from '@/components/trade-info/image-info-panel';
-import { NoticePanel } from '@/components/trade-info/notice-panel';
+import { TradingChart } from '@/components/trade/chart/chart';
+import { OrderForm } from '@/components/trade/chart/order-form';
+import { OrderBook } from '@/components/trade/chart/orderbook';
+import {
+  RevenueInfoCard,
+  IpIntroCard,
+} from '@/components/trade/info/info-panel';
+import { ImageInfoPanel } from '@/components/trade/info/image-info-panel';
+import { NoticePanel } from '@/components/trade/info/notice-panel';
 import { MOCK_INFO } from '@/lib/mock-info';
 import { MOCK_ITEMS } from '@/lib/mock-trading';
-import styles from '@/components/common/heart-icon.module.css';
+import { buildHeartMaskStyle } from '@/components/common/heart-mask-style';
 
 export default function TradingDetailPage() {
   const params = useParams();
@@ -96,11 +99,11 @@ export default function TradingDetailPage() {
               <span className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-[#EAECF0]">
                 <span
                   aria-hidden="true"
-                  className={`${styles.heartMask} transition-opacity`}
-                  style={{
-                    backgroundColor: liked ? '#F9595F' : '#29293A',
-                    opacity: liked ? 1 : 0.23,
-                  }}
+                  className="transition-opacity"
+                  style={buildHeartMaskStyle(
+                    liked ? '#F9595F' : '#29293A',
+                    liked ? 1 : 0.23,
+                  )}
                 />
               </span>
             </button>
