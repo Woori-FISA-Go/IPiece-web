@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image" // 1. Image 컴포넌트 import
 import walletIcon from "@/assets/images/wallet_icon.svg" // 2. 새 SVG 파일 import
-import { Card } from "@/components/ui/card"
+import { CustomCard as Card } from "@/components/ui/custom-card"
 import { Button } from "@/components/ui/button"
 
 // Sample deposit/withdrawal data
