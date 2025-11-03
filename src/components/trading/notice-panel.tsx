@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MOCK_NOTICES, type Notice } from '@/lib/mock-info';
@@ -22,17 +22,18 @@ export function NoticePanel({ notices }: NoticePanelProps = {}) {
   const loadingRef = useRef<HTMLDivElement>(null);
 
   const groupedEntries = useMemo(() => {
-    const grouped = sourceNotices.reduce((acc, notice) => {
-      if (!acc[notice.year]) {
-        acc[notice.year] = [];
-      }
-      acc[notice.year].push(notice);
-      return acc;
-    }, {} as Record<number, Notice[]>);
-
-    return Object.entries(grouped).sort(
-      ([a], [b]) => Number(b) - Number(a),
+    const grouped = sourceNotices.reduce(
+      (acc, notice) => {
+        if (!acc[notice.year]) {
+          acc[notice.year] = [];
+        }
+        acc[notice.year].push(notice);
+        return acc;
+      },
+      {} as Record<number, Notice[]>,
     );
+
+    return Object.entries(grouped).sort(([a], [b]) => Number(b) - Number(a));
   }, [sourceNotices]);
 
   useEffect(() => {
@@ -76,7 +77,10 @@ export function NoticePanel({ notices }: NoticePanelProps = {}) {
           className="notice-scroll flex-1 min-h-0 overflow-y-auto pr-2 space-y-4"
         >
           {groupedEntries.map(([year, notices]) => {
-            const items = notices.slice(0, Math.max(0, visibleCount - rendered));
+            const items = notices.slice(
+              0,
+              Math.max(0, visibleCount - rendered),
+            );
             rendered += items.length;
             if (items.length === 0) return null;
 
@@ -117,7 +121,10 @@ export function NoticePanel({ notices }: NoticePanelProps = {}) {
               </div>
             );
           })}
-          <div ref={loadingRef} className="py-4 text-center text-xs text-gray-400">
+          <div
+            ref={loadingRef}
+            className="py-4 text-center text-xs text-gray-400"
+          >
             {visibleCount >= sourceNotices.length ? '' : '불러오는 중...'}
           </div>
         </div>

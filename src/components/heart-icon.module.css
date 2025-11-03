@@ -2,8 +2,8 @@
   display: block;
   width: 24px;
   height: 24px;
-  mask-image: url('../../../../assets/heart_icon.svg');
-  -webkit-mask-image: url('../../../../assets/heart_icon.svg');
+  mask-image: url('../assets/heart_icon.svg');
+  -webkit-mask-image: url('../assets/heart_icon.svg');
   mask-repeat: no-repeat;
   -webkit-mask-repeat: no-repeat;
   mask-position: center;

@@ -11,7 +11,7 @@ import {
   useState,
   useLayoutEffect,
 } from 'react';
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Area,
   AreaChart,
@@ -68,9 +68,14 @@ export function TradingChart() {
   const pointSpacing = 24;
   const baseCanvasWidth = Math.max(
     containerWidth,
-    padding.left + padding.right + Math.max(visibleData.length - 1, 1) * pointSpacing,
+    padding.left +
+      padding.right +
+      Math.max(visibleData.length - 1, 1) * pointSpacing,
   );
-  const chartWidth = Math.max(0, baseCanvasWidth - padding.left - padding.right);
+  const chartWidth = Math.max(
+    0,
+    baseCanvasWidth - padding.left - padding.right,
+  );
   const chartHeight = height - padding.top - padding.bottom;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -146,10 +151,18 @@ export function TradingChart() {
       transform: `translate(${translateX}, -100%)`,
     } as React.CSSProperties;
   }, [hoveredPoint, baseCanvasWidth, padding.left, padding.right, padding.top]);
-  const scrollStyle = useMemo<CSSProperties>(() => ({ scrollbarWidth: 'none' }), []);
+  const scrollStyle = useMemo<CSSProperties>(
+    () => ({ scrollbarWidth: 'none' }),
+    [],
+  );
 
   const updateHover = useCallback(
-    (clientX: number, clientY: number, rect: DOMRect | null, scrollLeft = 0) => {
+    (
+      clientX: number,
+      clientY: number,
+      rect: DOMRect | null,
+      scrollLeft = 0,
+    ) => {
       if (!rect || chartWidth <= 0) return;
 
       const localX = clientX - rect.left;
@@ -323,12 +336,22 @@ export function TradingChart() {
                 }}
               >
                 <defs>
-                  <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient
+                    id="chartGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
                     <stop offset="0%" stopColor="#1A4DE5" stopOpacity={0.68} />
                     <stop offset="100%" stopColor="#1A4DE5" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" vertical={false} />
+                <CartesianGrid
+                  stroke="#E5E7EB"
+                  strokeDasharray="4 4"
+                  vertical={false}
+                />
                 <XAxis dataKey="t" hide />
                 <YAxis
                   dataKey="c"
@@ -336,13 +359,18 @@ export function TradingChart() {
                   tickLine={false}
                   ticks={yTicks}
                   domain={[minPrice, maxPrice]}
-                  tickFormatter={(value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`}
+                  tickFormatter={(value: number) =>
+                    `${Math.round(value).toLocaleString('ko-KR')}원`
+                  }
                   tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
                   orientation="right"
                   width={28}
                   tickMargin={0}
                 />
-                <RechartsTooltip cursor={false} wrapperStyle={{ display: 'none' }} />
+                <RechartsTooltip
+                  cursor={false}
+                  wrapperStyle={{ display: 'none' }}
+                />
                 <Area
                   type="monotone"
                   dataKey="c"

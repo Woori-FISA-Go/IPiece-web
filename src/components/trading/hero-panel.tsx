@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import type { SecurityInfo } from '@/lib/mock-info';
 import { ExternalLink } from 'lucide-react';
 
@@ -14,9 +14,7 @@ export function HeroPanel({ info }: HeroPanelProps) {
     <Card className="flex h-[380px] flex-col rounded-2xl border shadow-sm overflow-hidden">
       <CardContent className="flex flex-1 flex-col p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-[#111827]">
-            대표작품
-          </h3>
+          <h3 className="text-[15px] font-semibold text-[#111827]">대표작품</h3>
           <Link
             href="https://www.naver.com"
             target="_blank"

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 // TODO: 추푸 NavTabs, Footer 파일 추가
 // import { NavTabs } from '@/components/nav-tabs';
-import { IPCard } from './components/ip-card';
+import { IPCard } from '@/components/ip-card';
 // import { Footer } from '@/components/footer';
 import { sampleIPOData } from '@/lib/sample-data';
 
@@ -54,7 +54,7 @@ export default function HomePage() {
 
       <main className="flex-1 p-6 md:p-8">
         <div className="mb-6">
-          <span className="inline-flex items-center justify-center text-foreground font-medium px-3 py-1 rounded text-sm">
+          <span className="inline-flex items-center justify-center bg-gray-100 text-gray-900 font-medium px-3 py-1 rounded text-sm">
             {allItems.length}개
           </span>
         </div>

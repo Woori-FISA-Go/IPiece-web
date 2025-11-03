@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ORDERBOOK, SUMMARY_STATS } from '@/lib/mock-trading';
 
 type ActiveSide = 'sell' | 'buy';
@@ -91,7 +91,9 @@ export function OrderBook() {
                 key={`bid-${row.price}`}
                 className="grid grid-cols-3 items-center rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[#F2F4F7]"
               >
-                <span className="pl-4 text-left font-semibold text-slate-300">—</span>
+                <span className="pl-4 text-left font-semibold text-slate-300">
+                  —
+                </span>
                 <span className="flex items-center justify-center gap-2">
                   <span className="font-semibold text-[#2675EB]">
                     {formatNumber(row.price)}

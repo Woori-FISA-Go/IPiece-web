@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import emptyIcon from '@/assets/empty_icon.svg';
 
 type OrderTab = 'buy' | 'sell' | 'pending';
@@ -325,7 +325,9 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
                       <div className="flex items-center justify-between">
                         <span
                           className={`text-sm font-semibold ${
-                            order.side === 'buy' ? 'text-[#E94651]' : 'text-[#2675EB]'
+                            order.side === 'buy'
+                              ? 'text-[#E94651]'
+                              : 'text-[#2675EB]'
                           }`}
                         >
                           {order.side === 'buy' ? '매수' : '매도'} 주문
@@ -421,7 +423,9 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
 
               <dl className="mt-auto space-y-2 pt-6">
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
-                  <dt className="text-sm font-medium text-[#111827]">총 수익</dt>
+                  <dt className="text-sm font-medium text-[#111827]">
+                    총 수익
+                  </dt>
                   <dd className="text-right text-base font-semibold text-[#E53333]">
                     +{formatCurrency(myOrder.totalProfit)} (
                     {formatRate(myOrder.profitRate)})

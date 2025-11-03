@@ -2,19 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
-import { TradingChart } from '@/app/(pages)/trading/components/trade/chart';
-import { OrderForm } from '@/app/(pages)/trading/components/trade/order-form';
-import { OrderBook } from '@/app/(pages)/trading/components/trade/orderbook';
-import {
-  RevenueInfoCard,
-  IpIntroCard,
-} from '@/app/(pages)/trading/components/trading/info-panel';
-import { HeroPanel } from '@/app/(pages)/trading/components/trading/hero-panel';
-import { NoticePanel } from '@/app/(pages)/trading/components/trading/notice-panel';
+import { Card, CardContent } from '@/components/ui/card';
+import { TradingChart } from '@/components/trade/chart';
+import { OrderForm } from '@/components/trade/order-form';
+import { OrderBook } from '@/components/trade/orderbook';
+import { RevenueInfoCard, IpIntroCard } from '@/components/trading/info-panel';
+import { HeroPanel } from '@/components/trading/hero-panel';
+import { NoticePanel } from '@/components/trading/notice-panel';
 import { MOCK_INFO } from '@/lib/mock-info';
 import { MOCK_ITEMS } from '@/lib/mock-trading';
-import styles from './heart-icon.module.css';
+import styles from '@/components/heart-icon.module.css';
 
 export default function TradingDetailPage() {
   const params = useParams();

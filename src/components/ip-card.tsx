@@ -1,12 +1,14 @@
 'use client';
 
-import Image from 'next/image';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
-import heartIcon from '@/assets/heart_icon.svg';
+import { Card, CardContent } from '@/components/ui/card';
 import type { IPOItem } from '@/lib/sample-data';
+import styles from './heart-icon.module.css';
+
+const DEFAULT_CARD_IMAGE =
+  'https://cafe24img.poxo.com/dinotaeng/web/product/medium/202402/1a99099cfbb60588334407718ab59b7c.png';
 
 interface IPCardProps {
   item: IPOItem;
@@ -37,7 +39,7 @@ export function IPCard({ item, onLikeToggle }: IPCardProps) {
 
   return (
     <Card
-      className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 rounded-2xl cursor-pointer focus:outline-none"
+      className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
       onClick={handleCardNavigation}
       role="button"
       tabIndex={0}
@@ -46,7 +48,11 @@ export function IPCard({ item, onLikeToggle }: IPCardProps) {
       <CardContent className="p-0">
         <div className="relative aspect-square bg-muted">
           <img
-            src={item.imageUrl || '/placeholder.svg?height=300&width=300'}
+            src={
+              !item.imageUrl || item.imageUrl.includes('placeholder.svg')
+                ? DEFAULT_CARD_IMAGE
+                : item.imageUrl
+            }
             alt={item.title}
             className="w-full h-full object-cover"
           />
@@ -57,15 +63,13 @@ export function IPCard({ item, onLikeToggle }: IPCardProps) {
             aria-pressed={item.liked}
             type="button"
           >
-            <Image
-              src={heartIcon}
-              alt="좋아요"
-              width={24}
-              height={24}
-              className={`h-6 w-6 transition-opacity ${
-                item.liked ? 'opacity-100' : 'opacity-40'
-              }`}
-              priority={false}
+            <span
+              aria-hidden="true"
+              className={`${styles.heartMask} transition-opacity`}
+              style={{
+                backgroundColor: item.liked ? '#F9595F' : '#29293A',
+                opacity: item.liked ? 1 : 0.23,
+              }}
             />
           </button>
         </div>

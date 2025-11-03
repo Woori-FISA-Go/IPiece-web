@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent } from '@/app/(pages)/trading/components/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { RevenueChart } from './revenue-chart';
 import type { SecurityInfo } from '@/lib/mock-info';
 
