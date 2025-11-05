@@ -1,0 +1,21 @@
+              ?ÑÏù¥??<span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              <Input
+  type=\"password\"
+  placeholder=\"∫Òπ–π¯»£ »Æ¿Œ\"
+  value={formData.passwordConfirm}
+  onChange={(e) => handlePasswordConfirmChange(e.target.value)}
+/>
+            {passwordMatch === false && (
+              <div className="flex items-center gap-1 mt-2 px-3 py-2 rounded-md bg-[#FEF1F2]">
+                <img
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Error-K9PTWKSZz4DbA3eEFw6aS3Om28TIS2.png"
+                  alt="Error"
+                  width={16}
+                  height={16}
+                />
+                <span className="text-sm text-black">ÎπÑÎ?Î≤àÌò∏Í∞Ä ?ºÏπò?òÏ? ?äÏäµ?àÎã§.</span>
+              </div>
+            )}
+          </div>
