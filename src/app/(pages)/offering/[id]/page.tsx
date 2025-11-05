@@ -1,15 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { OfferingHeader } from "./components/offering-header"
-import { OfferingHero } from "./components/offering-hero"
-import { InvestmentPoints } from "./components/investment-points"
-import { OfferingDetails } from "./components/offering-details"
-import { PurchaseConfirmModal } from "./components/purchase-confirm-modal"
-import { PurchaseDetailsModal } from "./components/purchase-details-modal"
-import { OfferingFooter } from "./components/offering-footer"
 
-export default function OfferingPage() {
+import { OfferingHeader } from "../components/offering-header"
+import { OfferingHero } from "../components/offering-hero"
+import { InvestmentPoints } from "../components/investment-points"
+import { OfferingDetails } from "../components/offering-details"
+import { PurchaseConfirmModal } from "../components/purchase-confirm-modal"
+import { PurchaseDetailsModal } from "../components/purchase-details-modal"
+import { OfferingFooter } from "../components/offering-footer"
+
+type OfferingPageProps = {
+  params: {
+    id: string
+  }
+}
+
+export default function OfferingPage({ params }: OfferingPageProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
 
@@ -24,11 +31,10 @@ export default function OfferingPage() {
 
   const handleFinalPurchase = () => {
     setShowConfirmModal(false)
-    // Handle final purchase logic
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white" data-offering-id={params.id}>
       <OfferingHeader />
 
       <main>
@@ -53,4 +59,3 @@ export default function OfferingPage() {
     </div>
   )
 }
-

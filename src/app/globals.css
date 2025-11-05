@@ -1,7 +1,6 @@
 ﻿@import "tailwindcss";
 @import "tw-animate-css";
 
-
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -122,8 +121,12 @@
   }
 }
 
-select.option-centered option {
-  text-align: center;
+/* Hide scrollbar buttons */
+::-webkit-scrollbar-buttonㄴ {
+  display: none;
 }
 
-
+::-webkit-scrollbar-button:start:decrement,
+::-webkit-scrollbar-button:end:increment {
+  display: none;
+}
