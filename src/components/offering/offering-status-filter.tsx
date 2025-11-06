@@ -1,7 +1,7 @@
 ﻿"use client"
 
-import type { OfferingStatus } from "@/lib/mock-offering"
-import { OFFERING_STATUS_OPTIONS } from "@/lib/mock-offering"
+import type { OfferingStatus } from "@/lib/tmp-mock-offering"
+import { OFFERING_STATUS_OPTIONS } from "@/lib/tmp-mock-offering"
 
 interface OfferingStatusFilterProps {
   selected: OfferingStatus[]

@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 
-import type { OfferingItem } from "@/lib/mock-offering"
+import type { OfferingItem } from "@/lib/tmp-mock-offering"
 
 interface OfferingCardProps {
   item: OfferingItem
