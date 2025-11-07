@@ -1,0 +1,52 @@
+[
+  {
+    "name": "⚙️ setting",
+    "color": "cfd3d7",
+    "description": "개발 환경 / 설정 변경"
+  },
+  {
+    "name": "🎒 feat",
+    "color": "f9d0c4",
+    "description": "새로운 기능 추가"
+  },
+  {
+    "name": "🐞 fix",
+    "color": "bfd4f2",
+    "description": "버그 및 오류 수정"
+  },
+  {
+    "name": "🎨 style",
+    "color": "d4c5f9",
+    "description": "스타일 변경"
+  },
+  {
+    "name": "🐞 BugFix",
+    "color": "d73a4a",
+    "description": "Something isn't working"
+  },
+  {
+    "name": "🔨 refactor",
+    "color": "fef2c0",
+    "description": "코드 리팩토링"
+  },
+  {
+    "name": "📃 Docs",
+    "color": "1D76DB",
+    "description": "문서 작성 및 수정 (README.md 등)"
+  },
+  {
+    "name": "🧹chore",
+    "color": "c2e0c6",
+    "description": "기타 자잘한 수정"
+  },
+  {
+    "name": "🔨 Refactor",
+    "color": "f29a4e",
+    "description": "코드 리팩토링"
+  },
+  {
+    "name": "✅ Test",
+    "color": "ccffc4",
+    "description": "test 관련(storybook, jest...)"
+  }
+]
