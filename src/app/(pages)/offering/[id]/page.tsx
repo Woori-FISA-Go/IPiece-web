@@ -1,22 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState } from "react"
 
-import { OfferingHeader } from "../components/offering-header"
 import { OfferingHero } from "../components/offering-hero"
-import { InvestmentPoints } from "../components/investment-points"
 import { OfferingDetails } from "../components/offering-details"
 import { PurchaseConfirmModal } from "../components/purchase-confirm-modal"
 import { PurchaseDetailsModal } from "../components/purchase-details-modal"
-import { OfferingFooter } from "../components/offering-footer"
 
 type OfferingPageProps = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default function OfferingPage({ params }: OfferingPageProps) {
+  const resolvedParams = use(params)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
 
@@ -34,12 +32,9 @@ export default function OfferingPage({ params }: OfferingPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white" data-offering-id={params.id}>
-      <OfferingHeader />
-
-      <main>
+    <>
+      <main className="flex-1 bg-white" data-offering-id={resolvedParams.id}>
         <OfferingHero onParticipate={handleParticipate} />
-        <InvestmentPoints />
         <OfferingDetails />
       </main>
 
@@ -54,8 +49,6 @@ export default function OfferingPage({ params }: OfferingPageProps) {
         onOpenChange={setShowConfirmModal}
         onConfirm={handleFinalPurchase}
       />
-
-      <OfferingFooter />
-    </div>
+    </>
   )
 }

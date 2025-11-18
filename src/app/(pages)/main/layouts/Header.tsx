@@ -13,8 +13,8 @@ export function Header() {
   const searchParams = useSearchParams()
   const tab = searchParams?.get('tab')
   const onMain = pathname === '/' || pathname?.startsWith('/main')
-  const isOfferingActive = onMain && tab === 'offering'
-  const isTradingActive = onMain && tab === 'trading'
+  const isOfferingActive = pathname?.startsWith('/offering') || (onMain && tab === 'offering')
+  const isTradingActive = pathname?.startsWith('/trading') || (onMain && tab === 'trading')
 
   const navBase =
     "text-sm font-semibold cursor-pointer relative after:content-[''] after:absolute after:left-0 after:-bottom-1.5 after:h-[2px] after:bg-current after:transition-all after:duration-200"
@@ -40,13 +40,13 @@ export function Header() {
           </Link>
           <nav className="flex items-center gap-6">
             <Link
-              href="/main?tab=offering"
+              href="/offering"
               className={`${navBase} ${isOfferingActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}`}
             >
               {'\uACF5\uBAA8'}
             </Link>
             <Link
-              href="/main?tab=trading"
+              href="/trading"
               className={`${navBase} ${isTradingActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}`}
             >
               {'\uC99D\uAD8C \uAC70\uB798'}

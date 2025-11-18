@@ -4,10 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import InterestList from "@/app/(pages)/mypage/InterestList"
 import MyPortfolio from "@/app/(pages)/mypage/MyPortfolio"
-import AccountEmpty from "@/app/(pages)/mypage/AccountEmpty"
 import AccountHistory from "@/app/(pages)/mypage/AccountHistory"
-import Image from "next/image"
-import profilePicture from "@/assets/images/profile-picture.png"
 
 const tabs = ["MY HOME", "내 계좌", "관심"]
 
@@ -28,29 +25,7 @@ export default function MyPage() {
   }, [activeTab]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Header */}
-      <header className="border-b border-[#FAFAFA]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo and Navigation */}
-            <div className="flex items-center gap-8">
-              <div className="bg-gray-200 px-6 py-2 rounded text-sm font-medium text-gray-700">Logo</div>
-              <nav className="flex gap-6">
-                <button className="text-gray-700 hover:text-gray-900 text-sm font-medium">공모</button>
-                <button className="text-gray-700 hover:text-gray-900 text-sm font-medium">증권 거래</button>
-              </nav>
-            </div>
-
-            {/* User Menu */}
-            <div className="flex items-center gap-2">
-              <Image src={profilePicture} alt="Profile picture" width={24} height={24} />
-              <span className="text-sm text-gray-700">마이 페이지</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <main className="flex-1 bg-white">
       {/* Tabs */}
       <div className="border-b border-[#FAFAFA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -73,7 +48,7 @@ export default function MyPage() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <section className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {activeTab === "MY HOME" && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center justify-between">
@@ -165,23 +140,7 @@ export default function MyPage() {
         {activeTab === "내 계좌" && <AccountHistory accountState={accountState} setAccountState={setAccountState} />}
 
         {activeTab === "관심" && <InterestList products={hasInterestItems ? undefined : []} />}
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-blue-50 border-t border-blue-100 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-gray-200 px-6 py-2 rounded text-sm font-medium text-gray-700 inline-block mb-4">Logo</div>
-
-          <div className="text-xs text-gray-600 space-y-1 mb-4">
-            <p>대표자 : Masterpiece(주) | 제휴문의 : sto@ipiece.com, 전화문의 : 02-5643-2523</p>
-            <p>서울특별시 마포구 월드컵북로 434 IPiece</p>
-          </div>
-
-          <div className="text-xs text-gray-500">
-            <p>Copyright © IPiece INVESTMENT SECURITIES CO., LTD. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
-    </div>
+      </section>
+    </main>
   )
 }
