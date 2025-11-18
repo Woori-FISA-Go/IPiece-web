@@ -18,7 +18,7 @@ const labelClass = "block text-[12px] font-semibold mb-2"
 
 const helperTextClass = "text-[12px]"
 
-export default function SignupPage(): JSX.Element {
+export default function SignupPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     username: "",
