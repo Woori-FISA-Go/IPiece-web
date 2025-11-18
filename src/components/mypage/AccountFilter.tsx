@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { subDays, subMonths, format } from "date-fns"
-
 interface AccountFilterProps {
   activeFilter: string
   setActiveFilter: (filter: string) => void
@@ -29,6 +27,20 @@ export default function AccountFilter({
   const [selectedYear, setSelectedYear] = useState("2025")
   const [selectedMonth, setSelectedMonth] = useState("10")
   const [calendarDate, setCalendarDate] = useState(new Date(2025, 9, 23)) // October 23, 2025
+  const formatDate = (date: Date) =>
+    `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`
+
+  const subDays = (date: Date, amount: number) => {
+    const next = new Date(date)
+    next.setDate(next.getDate() - amount)
+    return next
+  }
+
+  const subMonths = (date: Date, amount: number) => {
+    const next = new Date(date)
+    next.setMonth(next.getMonth() - amount)
+    return next
+  }
 
   useEffect(() => {
     const today = new Date();
@@ -50,8 +62,8 @@ export default function AccountFilter({
     }
 
     if (activeFilter !== "기간 설정") {
-      setStartDate(format(newStartDate, "yyyy/MM/dd"));
-      setEndDate(format(newEndDate, "yyyy/MM/dd"));
+      setStartDate(formatDate(newStartDate));
+      setEndDate(formatDate(newEndDate));
     }
   }, [activeFilter, setStartDate, setEndDate]);
 

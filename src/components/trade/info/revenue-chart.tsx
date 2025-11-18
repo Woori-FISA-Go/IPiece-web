@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import type React from 'react';
 
@@ -9,15 +9,8 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useId,
 } from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip as RechartsTooltip,
-} from 'recharts';
 import type { RevenuePoint } from '@/lib/mock-info';
 
 interface RevenueChartProps {
@@ -101,13 +94,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
   const padding = { top: 20, right: 28, bottom: 40, left: 24 };
   const chartWidth = Math.max(0, width - padding.left - padding.right);
   const chartHeight = height - padding.top - padding.bottom;
+  const chartBaseline = padding.top + chartHeight;
+  const gradientId = useId();
 
   const activeData = visibleData.length > 0 ? visibleData : data;
 
   if (activeData.length === 0) {
     return (
       <div className="flex h-[250px] w-full items-center justify-center rounded-lg bg-gradient-to-b from-blue-50/30 to-white text-xs text-gray-400">
-        표시할 데이터가 없습니다.
+        ?쒖떆???곗씠?곌? ?놁뒿?덈떎.
       </div>
     );
   }
@@ -135,6 +130,50 @@ export function RevenueChart({ data }: RevenueChartProps) {
     });
   }, [activeData]);
 
+  const xScale = useCallback(
+    (index: number) => {
+      const denominator = Math.max(activeData.length - 1, 1);
+      return padding.left + (denominator ? (index / denominator) * chartWidth : 0);
+    },
+    [activeData.length, chartWidth, padding.left],
+  );
+
+  const yScaleValue = useCallback(
+    (value: number) =>
+      padding.top +
+      (chartHeight -
+        ((value - minValue) / (maxValue - minValue || 1)) * chartHeight),
+    [chartHeight, maxValue, minValue, padding.top],
+  );
+
+  const { areaPath, linePath } = useMemo(() => {
+    if (!activeData.length) {
+      return { areaPath: '', linePath: '' };
+    }
+    const points = activeData.map((point, index) => ({
+      x: xScale(index),
+      y: yScaleValue(point.value),
+    }));
+    const first = points[0];
+    const last = points[points.length - 1];
+    const areaCommands = [
+      'M ' + first.x + ' ' + chartBaseline,
+      'L ' + first.x + ' ' + first.y,
+      ...points.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
+      'L ' + last.x + ' ' + chartBaseline,
+      'L ' + first.x + ' ' + chartBaseline,
+      'Z',
+    ];
+    const lineCommands = [
+      'M ' + first.x + ' ' + first.y,
+      ...points.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
+    ];
+    return {
+      areaPath: areaCommands.join(' '),
+      linePath: lineCommands.join(' '),
+    };
+  }, [activeData, chartBaseline, xScale, yScaleValue]);
+
   const tooltipStyle = useMemo(() => {
     if (!tooltip) return null;
     const safeTop = Math.max(padding.top + 12, tooltip.y - 48);
@@ -150,9 +189,9 @@ export function RevenueChart({ data }: RevenueChartProps) {
       translateX = '0';
     }
     return {
-      left: `${left}px`,
-      top: `${safeTop}px`,
-      transform: `translate(${translateX}, -100%)`,
+      left: left + 'px',
+      top: safeTop + 'px',
+      transform: 'translate(' + translateX + ', -100%)',
     } as React.CSSProperties;
   }, [tooltip, width, padding.left, padding.right, padding.top]);
 
@@ -190,10 +229,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
         return;
       }
 
-      const xPos = padding.left + (denominator ? (index / denominator) * chartWidth : 0);
-      const yPos =
-        padding.top +
-        (chartHeight - ((point.value - minValue) / (maxValue - minValue || 1)) * chartHeight);
+      const xPos = xScale(index);
+      const yPos = yScaleValue(point.value);
 
       const globalIndex = rangeStart + index;
       const anchorDate = new Date();
@@ -203,7 +240,13 @@ export function RevenueChart({ data }: RevenueChartProps) {
       const date = new Date(anchorDate);
       date.setMonth(anchorDate.getMonth() - offset);
       const monthNumber = date.getMonth() + 1;
-      const dateLabel = `${date.getFullYear()}년 ${monthNumber}월 ${date.getDate()}일`;
+      const dateLabel =
+        date.getFullYear() +
+        '년 ' +
+        monthNumber +
+        '월 ' +
+        date.getDate() +
+        '일';
 
       setTooltip({
         x: xPos,
@@ -213,7 +256,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
         dateLabel,
       });
     },
-    [activeData, chartHeight, chartWidth, data.length, maxValue, minValue, padding.left, padding.top, rangeStart],
+    [activeData, chartWidth, data.length, padding.left, padding.top, rangeStart, xScale, yScaleValue],
   );
 
   const handlePointerDown = useCallback(
@@ -286,7 +329,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
         ref={containerRef}
         className="flex h-[250px] w-full items-center justify-center rounded-lg bg-gradient-to-b from-blue-50/30 to-white text-xs text-gray-400"
       >
-        차트 준비 중...
+        李⑦듃 以鍮?以?..
       </div>
     );
   }
@@ -302,44 +345,45 @@ export function RevenueChart({ data }: RevenueChartProps) {
       onPointerCancel={handlePointerLeave}
     >
       <div className="absolute inset-0">
-        <AreaChart
-          width={width}
-          height={height}
-          data={activeData}
-          margin={padding}
-        >
+                <svg width={width} height={height} role="img" aria-label="?? ?? ??">
           <defs>
-            <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" vertical={false} />
-          <XAxis dataKey="t" hide />
-          <YAxis
-            dataKey="value"
-            axisLine={false}
-            tickLine={false}
-            ticks={yTicks}
-            domain={[minValue, maxValue]}
-            tickFormatter={(value: number) => `${Math.round(value).toLocaleString('ko-KR')}원`}
-            tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
-            orientation="right"
-            width={26}
-            tickMargin={0}
-          />
-          <RechartsTooltip cursor={false} wrapperStyle={{ display: 'none' }} />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="#3b82f6"
-            strokeWidth={2}
-            fill="url(#revenueGradient)"
-            isAnimationActive={false}
-            activeDot={false}
-            dot={false}
-          />
-        </AreaChart>
+          {yTicks.map((tick) => {
+            const y = yScaleValue(tick)
+            return (
+              <g key={'tick-' + tick}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  stroke="#E5E7EB"
+                  strokeDasharray="4 4"
+                />
+                <text x={width - padding.right + 6} y={y + 4} fill="#6B7280" fontSize={10}>
+                  {Math.round(tick).toLocaleString('ko-KR') + '원'}
+                </text>
+              </g>
+            )
+          })}
+          {areaPath && (
+            <>
+              <path d={areaPath} fill={'url(#' + gradientId + ')'} stroke="none" />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </>
+          )}
+        </svg>
       </div>
 
       {tooltip && (
@@ -347,9 +391,9 @@ export function RevenueChart({ data }: RevenueChartProps) {
           <div
             className="absolute"
             style={{
-              left: `${tooltip.x}px`,
-              top: `${padding.top}px`,
-              height: `${chartHeight}px`,
+              left: tooltip.x + 'px',
+              top: padding.top + 'px',
+              height: chartHeight + 'px',
               borderLeft: '1px dashed #3b82f6',
               transform: 'translateX(-0.5px)',
               pointerEvents: 'none',
@@ -358,8 +402,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
           <div
             className="absolute"
             style={{
-              left: `${tooltip.x - 5}px`,
-              top: `${tooltip.y - 5}px`,
+              left: tooltip.x - 5 + 'px',
+              top: tooltip.y - 5 + 'px',
               width: '10px',
               height: '10px',
               backgroundColor: '#3b82f6',
@@ -371,8 +415,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
           <div
             className="absolute"
             style={{
-              left: `${tooltip.x - 3}px`,
-              top: `${tooltip.y - 3}px`,
+              left: tooltip.x - 3 + 'px',
+              top: tooltip.y - 3 + 'px',
               width: '6px',
               height: '6px',
               backgroundColor: '#ffffff',
@@ -387,7 +431,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
             >
               <div className="text-[11px] font-medium text-white/80">{tooltip.dateLabel}</div>
               <div className="mt-1 text-sm font-semibold">
-                {Math.round(tooltip.value).toLocaleString('ko-KR')}원
+                {Math.round(tooltip.value).toLocaleString('ko-KR')}??
               </div>
             </div>
           )}
@@ -396,7 +440,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
       <div className="absolute bottom-[14px] left-0 right-0 flex justify-between px-12 text-[10px] text-gray-500">
         {axisLabels.map((label, index) => (
-          <span key={`${label}-${index}`} className="truncate">
+          <span key={label + '-' + index} className="truncate">
             {label}
           </span>
         ))}

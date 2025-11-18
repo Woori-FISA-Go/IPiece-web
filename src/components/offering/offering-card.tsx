@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { CardImage } from '@/components/common/card-image';
-import { CardContent } from '@/components/common/card-content';
-import type { OfferingItem } from '@/lib/mock-offering';
-import { Card } from '@/components/ui/card';
+import { useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import { CardImage } from "@/components/common/card-image";
+import { CardContent } from "@/components/common/card-content";
+import type { OfferingItem } from "@/lib/mock-offering";
+import { Card } from "@/components/ui/card";
 
 interface OfferingCardProps {
   item: OfferingItem;
@@ -13,10 +14,23 @@ interface OfferingCardProps {
 
 export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
   const [liked, setLiked] = useState(item.liked || false);
+  const router = useRouter();
+  const productId = item.id?.trim() || "dino-tang";
 
   const handleLikeClick = () => {
     setLiked(!liked);
     onLikeToggle(item.id);
+  };
+
+  const handleNavigate = () => {
+    router.push(`/offering/${productId}`);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleNavigate();
+    }
   };
 
   const renderStatusBadge = () => {
@@ -86,6 +100,8 @@ export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
       role="button"
       tabIndex={0}
       aria-label={`${item.title} - ${item.author}`}
+      onClick={handleNavigate}
+      onKeyDown={handleKeyDown}
       className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
     >
       <CardImage

@@ -47,7 +47,7 @@ const AGREEMENTS = [
   { id: "junior", label: "준회원 이용약관", required: false },
 ] satisfies Array<{ id: AgreementId; label: string; required: boolean }>
 
-export default function VerificationPage(): JSX.Element {
+export default function VerificationPage() {
   const router = useRouter()
   const [formData, setFormData] = useState<FormState>({
     name: "",

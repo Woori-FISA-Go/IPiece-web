@@ -10,16 +10,9 @@ import {
   useRef,
   useState,
   useLayoutEffect,
+  useId,
 } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import {
   MOCK_CANDLES_1D,
   MOCK_CANDLES_1M,
@@ -77,7 +70,9 @@ export function TradingChart() {
     baseCanvasWidth - padding.left - padding.right,
   );
   const chartHeight = height - padding.top - padding.bottom;
+  const chartBaseline = padding.top + chartHeight;
   const [mounted, setMounted] = useState(false);
+  const gradientId = useId();
   useEffect(() => setMounted(true), []);
 
   useLayoutEffect(() => {
@@ -114,6 +109,34 @@ export function TradingChart() {
   const yScale = (price: number) =>
     padding.top +
     ((maxPrice - price) / (maxPrice - minPrice || 1)) * chartHeight;
+
+  const { areaPath, linePath } = useMemo(() => {
+    if (!visibleData.length) {
+      return { areaPath: '', linePath: '' };
+    }
+    const points = visibleData.map((candle, index) => ({
+      x: xScale(index),
+      y: yScale(candle.c),
+    }));
+    const first = points[0];
+    const last = points[points.length - 1];
+    const areaCommands = [
+      `M ${first.x} ${chartBaseline}`,
+      `L ${first.x} ${first.y}`,
+      ...points.slice(1).map((point) => `L ${point.x} ${point.y}`),
+      `L ${last.x} ${chartBaseline}`,
+      `L ${first.x} ${chartBaseline}`,
+      'Z',
+    ];
+    const lineCommands = [
+      `M ${first.x} ${first.y}`,
+      ...points.slice(1).map((point) => `L ${point.x} ${point.y}`),
+    ];
+    return {
+      areaPath: areaCommands.join(' '),
+      linePath: lineCommands.join(' '),
+    };
+  }, [chartBaseline, visibleData, xScale, yScale]);
 
   const yTicks = useMemo(
     () => [minPrice, (minPrice + maxPrice) / 2, maxPrice],
@@ -324,64 +347,65 @@ export function TradingChart() {
               onPointerLeave={handlePointerLeave}
               onPointerCancel={handlePointerLeave}
             >
-              <AreaChart
+              <svg
                 width={baseCanvasWidth}
                 height={height}
-                data={visibleData}
-                margin={{
-                  top: padding.top,
-                  right: padding.right,
-                  bottom: padding.bottom,
-                  left: padding.left,
-                }}
+                role="img"
+                aria-label="거래 차트"
               >
                 <defs>
                   <linearGradient
-                    id="chartGradient"
+                    id={gradientId}
                     x1="0"
                     y1="0"
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor="#1A4DE5" stopOpacity={0.68} />
-                    <stop offset="100%" stopColor="#1A4DE5" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#1A4DE5" stopOpacity="0.68" />
+                    <stop offset="100%" stopColor="#1A4DE5" stopOpacity="0" />
                   </linearGradient>
                 </defs>
-                <CartesianGrid
-                  stroke="#E5E7EB"
-                  strokeDasharray="4 4"
-                  vertical={false}
-                />
-                <XAxis dataKey="t" hide />
-                <YAxis
-                  dataKey="c"
-                  axisLine={false}
-                  tickLine={false}
-                  ticks={yTicks}
-                  domain={[minPrice, maxPrice]}
-                  tickFormatter={(value: number) =>
-                    `${Math.round(value).toLocaleString('ko-KR')}원`
-                  }
-                  tick={{ fill: '#6B7280', fontSize: 10, dx: -4 }}
-                  orientation="right"
-                  width={28}
-                  tickMargin={0}
-                />
-                <RechartsTooltip
-                  cursor={false}
-                  wrapperStyle={{ display: 'none' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="c"
-                  stroke="#1A4DE5"
-                  strokeWidth={1.25}
-                  fill="url(#chartGradient)"
-                  isAnimationActive={false}
-                  activeDot={false}
-                  dot={false}
-                />
-              </AreaChart>
+                {yTicks.map((tick) => {
+                  const y = yScale(tick);
+                  return (
+                    <g key={`tick-${tick}`}>
+                      <line
+                        x1={padding.left}
+                        x2={baseCanvasWidth - padding.right}
+                        y1={y}
+                        y2={y}
+                        stroke="#E5E7EB"
+                        strokeDasharray="4 4"
+                      />
+                      <text
+                        x={baseCanvasWidth - padding.right + 6}
+                        y={y + 4}
+                        fill="#6B7280"
+                        fontSize={10}
+                      >
+                        {`${Math.round(tick).toLocaleString('ko-KR')}원`}
+                      </text>
+                    </g>
+                  );
+                })}
+                {areaPath && (
+                  <>
+                    <path
+                      d={areaPath}
+                      fill={`url(#${gradientId})`}
+                      stroke="none"
+                    />
+                    <path
+                      d={linePath}
+                      fill="none"
+                      stroke="#1A4DE5"
+                      strokeWidth={1.25}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                  </>
+                )}
+              </svg>
 
               {hoveredPoint && (
                 <>

@@ -1,11 +1,13 @@
-﻿"use client"
+"use client"
 
+import { useState } from "react"
 import Image from "next/image"
 
 import Logo from "@/app/(pages)/main/assets/Logo.png"
 
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog"
 import { Button } from "./ui/button"
+import { Input } from "./ui/input"
 
 interface PurchaseDetailsModalProps {
   open: boolean
@@ -14,15 +16,17 @@ interface PurchaseDetailsModalProps {
 }
 
 export function PurchaseDetailsModal({ open, onOpenChange, onConfirm }: PurchaseDetailsModalProps) {
+  const [quantity, setQuantity] = useState(3)
+  const unitPrice = 100
+  const totalPrice = quantity * unitPrice
+
   const purchaseSummary = {
-    title: "IPiece Dino Tokens \uad6c\ub9e4\ucc3d",
-    subtitle: "\ub2e4\uc774\ub178\ud0f1 IP \uc218\uc775\uc99d\uad8c (DINOT)",
-    itemName: "\ub2e4\uc774\ub178\ud0f1",
-    itemDetail: "3 Dino Tokens \u00d7 100 \u20a9",
+    title: "IPiece Dino Tokens 구매창",
+    subtitle: "다이노텡 IP 수익증권 (DINOT)",
+    itemName: "다이노텡",
     totalLabel: "Total",
-    totalValue: "300 KRW",
-    buttonLabel: "\uad6c\ub9e4\ud558\uae30",
-    illustrationAlt: "\ub2e4\uc774\ub178\ud0f1 \uc77c\ub7ec\uc2a4\ud2b8"
+    buttonLabel: "구매하기",
+    illustrationAlt: "다이노텡 일러스트",
   }
 
   return (
@@ -31,7 +35,7 @@ export function PurchaseDetailsModal({ open, onOpenChange, onConfirm }: Purchase
         <DialogTitle className="sr-only">{purchaseSummary.title}</DialogTitle>
         <div className="space-y-6 p-6">
           <header className="flex items-center">
-            <Image src={Logo} alt="\uc544\uc774\ud53c\uc2a4 \ub85c\uace0" width={120} height={32} className="h-8 w-auto object-contain" />
+            <Image src={Logo} alt="아이피스 로고" width={120} height={32} className="h-8 w-auto object-contain" />
           </header>
 
           <div className="space-y-1">
@@ -46,13 +50,25 @@ export function PurchaseDetailsModal({ open, onOpenChange, onConfirm }: Purchase
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-base font-semibold text-[#1F2229]">{purchaseSummary.itemName}</span>
-                <span className="text-sm text-[#4B5563]">{purchaseSummary.itemDetail}</span>
+                <div className="flex items-center gap-2 text-sm text-[#1F2229]">
+                  <Input
+                    aria-label="토큰 수량"
+                    type="number"
+                    min={1}
+                    className="h-10 w-16 text-right"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                  <span className="whitespace-nowrap">
+                    Dino Tokens × {unitPrice.toLocaleString()} ₩
+                  </span>
+                </div>
               </div>
             </div>
             <div className="border-t border-[#E0E4EC] px-5 py-4">
               <div className="flex items-center justify-end gap-2">
-                <span className="text-sm font-medium text-[#6B7280]">{purchaseSummary.totalLabel}</span>
-                <span className="text-xl font-bold text-[#1F2229]">{purchaseSummary.totalValue}</span>
+                <span className="text-sm font-medium text-[#1F2229]">{purchaseSummary.totalLabel}</span>
+                <span className="text-xl font-bold text-[#1F2229]">{totalPrice.toLocaleString()} KRW</span>
               </div>
             </div>
           </div>
