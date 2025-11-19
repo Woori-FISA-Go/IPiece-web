@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
 import { TradingChart } from '@/components/trade/chart/chart';
 import { OrderForm } from '@/components/trade/chart/order-form';
 import { OrderBook } from '@/components/trade/chart/orderbook';
@@ -12,15 +11,56 @@ import {
 } from '@/components/trade/info/info-panel';
 import { ImageInfoPanel } from '@/components/trade/info/image-info-panel';
 import { NoticePanel } from '@/components/trade/info/notice-panel';
+import type { Notice, SecurityInfo } from '@/lib/mock-info';
 import { MOCK_INFO } from '@/lib/mock-info';
-import { MOCK_ITEMS } from '@/lib/mock-trading';
 import { buildHeartMaskStyle } from '@/components/common/heart-mask-style';
+import { apiFetch } from '@/lib/api-client';
+
+type ProductInfo = {
+  product_id: number;
+  product_name: string;
+  token_unit: string;
+  current_price: number;
+  change_rate: number;
+  thumbnail_img: string;
+  is_favorited: boolean;
+};
+
+type ProductNotice = {
+  disclosure_date: string;
+  disclosure_title: string;
+  disclosure_url?: string;
+};
+
+type ProductDetails = {
+  owner: string;
+  total_supply: number;
+  token_standard: string;
+  exchange_listing: string;
+  description: string;
+  detail_image?: string;
+  detail_url?: string;
+  dividends?: {
+    dividend_id: number;
+    amount_per_token: number;
+    payment_date: string;
+  }[];
+  notices?: ProductNotice[];
+};
+
+type ProductDetailResponse = {
+  info: ProductInfo;
+  details: ProductDetails;
+};
 
 export default function TradingDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const [liked, setLiked] = useState(false);
   const [activeTab, setActiveTab] = useState<'chart' | 'info'>('chart');
+  const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
+  const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
+  const [notices, setNotices] = useState<Notice[] | undefined>(undefined);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<'chart' | 'info', HTMLButtonElement | null>>({
     chart: null,
@@ -64,12 +104,97 @@ export default function TradingDetailPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Find the item from mock data
-  const item = MOCK_ITEMS.find((i) => i.id === id) || MOCK_ITEMS[0];
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        const res = await apiFetch(`/v1/market/${id}/details`);
+        if (!res.ok) {
+          throw new Error(`Failed to load product details: ${res.status}`);
+        }
 
-  const changePct = item.changePct;
-  const isPositive = changePct >= 0;
-  const changeText = isPositive ? `+${changePct}%` : `${changePct}%`;
+        const data = (await res.json()) as ProductDetailResponse;
+        setProductInfo(data.info);
+        setProductDetails(data.details);
+        setLiked(Boolean(data.info?.is_favorited));
+
+        const mappedNotices: Notice[] | undefined = data.details?.notices?.map(
+          (notice, idx) => {
+            const date = notice.disclosure_date;
+            const year = new Date(date).getFullYear();
+            return {
+              id: `notice-${idx}-${date}`,
+              date,
+              title: notice.disclosure_title,
+              subtitle: undefined,
+              year,
+              url: notice.disclosure_url,
+            } satisfies Notice;
+          },
+        );
+        setNotices(mappedNotices);
+      } catch (error) {
+        console.error('Failed to fetch product details', error);
+      }
+    };
+
+    fetchDetails();
+  }, [id]);
+
+  const mappedInfo = useMemo<SecurityInfo | null>(() => {
+    if (!productInfo || !productDetails) return null;
+
+    const dividends = productDetails.dividends ?? [];
+    const revenueMonthly = dividends
+      .map((dividend) => {
+        const date = new Date(dividend.payment_date);
+        const monthLabel = `${date.getMonth() + 1}월`;
+        return {
+          t: monthLabel,
+          value: dividend.amount_per_token,
+          date: dividend.payment_date,
+        };
+      })
+      .sort((a, b) => {
+        const aMonth = Number(a.t.replace('월', ''));
+        const bMonth = Number(b.t.replace('월', ''));
+        return aMonth - bMonth;
+      });
+
+    return {
+      id: String(productInfo.product_id ?? id),
+      name: productInfo.product_name,
+      issueDate: '',
+      publisher: productDetails.owner ?? '',
+      totalIssue: productDetails.total_supply
+        ? productDetails.total_supply.toLocaleString('ko-KR')
+        : '',
+      tokenStandard: productDetails.token_standard ?? '',
+      listing: productDetails.exchange_listing ?? '',
+      summary: productDetails.description ?? '',
+      heroImage:
+        productDetails.detail_image ||
+        productDetails.detail_url ||
+        productInfo.thumbnail_img,
+      revenueMonthly,
+    };
+  }, [id, productDetails, productInfo]);
+
+  const changeRate = Number(productInfo?.change_rate ?? 0);
+  const formattedChange = changeRate.toFixed(1);
+  const isZeroChange = changeRate === 0;
+  const isPositiveChange = changeRate > 0;
+  const changeText = isZeroChange
+    ? '0.0%'
+    : isPositiveChange
+      ? `+${formattedChange}%`
+      : `${formattedChange}%`;
+  const changeClass = isZeroChange
+    ? 'text-gray-500'
+    : isPositiveChange
+      ? 'text-[#E53333]'
+      : 'text-[#3386E5]';
+
+  const infoForCards: SecurityInfo = mappedInfo ?? MOCK_INFO;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -82,10 +207,16 @@ export default function TradingDetailPage() {
                 logo
               </div>
               <div>
-                <h1 className="text-xl font-bold">{item.title}</h1>
-                <p className="text-sm text-gray-600">
-                  1 Dino Tokens 당 {item.priceKRW.toLocaleString('ko-KR')}원{' '}
-                  <span className="text-[#E53333] font-medium">
+                <h1 className="text-xl font-bold">
+                  {productInfo?.product_name ?? infoForCards.name}
+                </h1>
+                <p className="text-sm text-gray-600" suppressHydrationWarning>
+                  1 {productInfo?.token_unit ?? ''} 당{' '}
+                  {productInfo?.current_price?.toLocaleString('ko-KR') ?? '-'}원{' '}
+                  <span
+                    className={`ml-2 ${changeClass} text-base font-semibold`}
+                    suppressHydrationWarning
+                  >
                     {changeText}
                   </span>
                 </p>
@@ -166,7 +297,7 @@ export default function TradingDetailPage() {
 
             {/* Order Form - Middle Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[320px]">
-              <OrderForm currentPrice={item.priceKRW} />
+              <OrderForm currentPrice={productInfo?.current_price ?? 0} />
             </div>
 
             {/* Order Book - Right Column */}
@@ -181,12 +312,12 @@ export default function TradingDetailPage() {
         <main className="mx-auto w-full max-w-[1680px] px-6 lg:px-12 py-6">
           <div className="space-y-8">
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)] items-start">
-              <RevenueInfoCard info={MOCK_INFO} />
-              <ImageInfoPanel info={MOCK_INFO} />
+              <RevenueInfoCard info={infoForCards} />
+              <ImageInfoPanel info={infoForCards} />
             </div>
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
-              <IpIntroCard info={MOCK_INFO} />
-              <NoticePanel />
+              <IpIntroCard info={infoForCards} />
+              <NoticePanel notices={notices} />
             </div>
           </div>
         </main>

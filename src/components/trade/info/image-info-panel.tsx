@@ -25,17 +25,19 @@ export function ImageInfoPanel({ info }: ImageInfoPanelProps) {
             <ExternalLink className="h-4 w-4" />
           </Link>
         </div>
-        <div className="flex flex-1 w-full items-center justify-center rounded-xl bg-gray-200 text-sm text-gray-400">
-          {info.heroImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={info.heroImage}
-              alt={`${info.name} 대표작품`}
-              className="h-full w-full rounded-xl object-cover"
-            />
-          ) : (
-            <span>image</span>
-          )}
+        <div className="relative flex flex-1 w-full items-center justify-center rounded-xl bg-gray-200 text-sm text-gray-400 overflow-hidden">
+          <div className="relative w-full aspect-[16/9] overflow-hidden rounded-lg">
+            {info.heroImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={info.heroImage}
+                alt={`${info.name} 대표작품`}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center">image</span>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
