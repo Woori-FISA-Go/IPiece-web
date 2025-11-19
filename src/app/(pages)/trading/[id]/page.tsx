@@ -6,6 +6,7 @@ import { TradingChart } from '@/components/trade/chart/chart';
 import { OrderForm } from '@/components/trade/chart/order-form';
 import type { AssetSummary as OrderAssetSummary } from '@/components/trade/chart/order-form';
 import { OrderBook } from '@/components/trade/chart/orderbook';
+import type { OrderBookProps } from '@/components/trade/chart/orderbook';
 import {
   RevenueInfoCard,
   IpIntroCard,
@@ -63,6 +64,29 @@ type AssetResponse = {
   total_profit_rate: number;
 };
 
+type OrdersResponse = {
+  summary: {
+    highest_price: number;
+    lowest_price: number;
+    last_price: number;
+    price_change: number;
+    limit_up_price: number;
+    limit_down_price: number;
+    this_week_volume: number;
+    last_week_volume: number;
+  };
+  orders_sell: Array<{
+    order_price: number;
+    quantity: number;
+    price_change: number;
+  }>;
+  orders_buy: Array<{
+    order_price: number;
+    quantity: number;
+    price_change: number;
+  }>;
+};
+
 export default function TradingDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -72,6 +96,7 @@ export default function TradingDetailPage() {
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
   const [notices, setNotices] = useState<Notice[] | undefined>(undefined);
   const [assetSummary, setAssetSummary] = useState<OrderAssetSummary | null>(null);
+  const [orderBookData, setOrderBookData] = useState<OrderBookProps | null>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<'chart' | 'info', HTMLButtonElement | null>>({
     chart: null,
@@ -178,6 +203,46 @@ export default function TradingDetailPage() {
     fetchAsset();
   }, [id]);
 
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const res = await apiFetch(`/v1/market/${id}/orders`);
+        if (!res.ok) {
+          console.warn(`Failed to load order book: ${res.status}`);
+          setOrderBookData(null);
+          return;
+        }
+        const data = (await res.json()) as OrdersResponse;
+        const mapOrders = (orders: OrdersResponse['orders_sell']) =>
+          orders?.map((order) => ({
+            price: order.order_price,
+            quantity: order.quantity,
+            changePct: order.price_change,
+          })) ?? [];
+
+        setOrderBookData({
+          summary: {
+            highestPrice: data.summary?.highest_price ?? 0,
+            lowestPrice: data.summary?.lowest_price ?? 0,
+            lastPrice: data.summary?.last_price ?? 0,
+            priceChange: data.summary?.price_change ?? 0,
+            limitUpPrice: data.summary?.limit_up_price ?? 0,
+            limitDownPrice: data.summary?.limit_down_price ?? 0,
+            thisWeekVolume: data.summary?.this_week_volume ?? 0,
+            lastWeekVolume: data.summary?.last_week_volume ?? 0,
+          },
+          ordersSell: mapOrders(data.orders_sell ?? []),
+          ordersBuy: mapOrders(data.orders_buy ?? []),
+        });
+      } catch (error) {
+        console.error('Failed to fetch order book data', error);
+        setOrderBookData(null);
+      }
+    };
+
+    fetchOrders();
+  }, [id]);
+
   const mappedInfo = useMemo<SecurityInfo | null>(() => {
     if (!productInfo || !productDetails) return null;
 
@@ -234,6 +299,8 @@ export default function TradingDetailPage() {
 
   const infoForCards: SecurityInfo = mappedInfo ?? MOCK_INFO;
 
+  const thumbnailSrc = productInfo?.thumbnail_img || infoForCards.heroImage;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -241,8 +308,17 @@ export default function TradingDetailPage() {
         <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500">
-                logo
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100" suppressHydrationWarning>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={
+                    thumbnailSrc && thumbnailSrc.trim().length > 0
+                      ? thumbnailSrc
+                      : 'https://via.placeholder.com/64x64.png?text=IP'
+                  }
+                  alt={`${productInfo?.product_name ?? infoForCards.name} 썸네일`}
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div>
                 <h1 className="text-xl font-bold">
@@ -340,7 +416,11 @@ export default function TradingDetailPage() {
 
             {/* Order Book - Right Column */}
             <div className="lg:h-[var(--panel-height)]">
-              <OrderBook />
+              <OrderBook
+                summary={orderBookData?.summary}
+                ordersSell={orderBookData?.ordersSell}
+                ordersBuy={orderBookData?.ordersBuy}
+              />
             </div>
           </div>
         </main>
