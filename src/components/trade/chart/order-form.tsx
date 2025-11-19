@@ -4,20 +4,22 @@ import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
-import emptyIcon from '@/assets/empty_icon.svg';
+import myHomeEmptyIcon from '@/assets/images/my_home_empty_state_icon.svg';
 
 type OrderTab = 'buy' | 'sell' | 'pending';
 
 interface OrderFormProps {
   currentPrice: number;
+  assetSummary: AssetSummary | null;
 }
 
-type OrderSummary = {
-  totalProfit: number;
-  profitRate: number;
-  totalAmount: number;
+export type AssetSummary = {
+  productName: string;
   quantity: number;
-  averagePrice: number;
+  avgBuyPrice: number;
+  totalAmount: number;
+  totalProfitAmount: number;
+  totalProfitRate: number;
 };
 
 type PendingOrder = {
@@ -28,19 +30,17 @@ type PendingOrder = {
   createdAt: number;
 };
 
-export function OrderForm({ currentPrice }: OrderFormProps) {
+export function OrderForm({ currentPrice, assetSummary }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
   const [orderType] = useState('limit');
   const [price, setPrice] = useState(currentPrice);
   const [quantity, setQuantity] = useState(1);
-  const [myOrder] = useState<OrderSummary | null>({
-    totalProfit: 658_000,
-    profitRate: 0.719,
-    totalAmount: 1_572_000,
-    quantity: 15,
-    averagePrice: 60_933,
-  });
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
   const handleSubmit = () => {
     if (activeTab === 'pending') return;
@@ -69,10 +69,15 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
   const incrementQuantity = () => setQuantity((q) => q + 1);
   const decrementQuantity = () => setQuantity((q) => Math.max(1, q - 1));
 
-  const formatCurrency = (value: number) =>
-    `${value.toLocaleString('ko-KR')}원`;
+  const formatCurrency = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
-  const formatRate = (value: number) => `${(value * 100).toFixed(1)}%`;
+  const formatProfitAmount = (value: number) => {
+    if (value === 0) return formatCurrency(0);
+    const sign = value > 0 ? '+' : '−';
+    return `${sign}${formatCurrency(Math.abs(value))}`;
+  };
+
+  const formatRate = (value: number) => `${value.toFixed(1)}%`;
   const formatTimestamp = (value: number) =>
     new Date(value).toLocaleString('ko-KR', {
       month: '2-digit',
@@ -399,18 +404,7 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
       {/* My Orders Card */}
       <Card className="flex flex-1 flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
         <CardContent className="flex flex-col p-6 pb-4 pt-4">
-          {!myOrder ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-sm text-gray-500">
-              <Image
-                src={emptyIcon}
-                alt="주문 없음"
-                width={88}
-                height={88}
-                priority
-              />
-              <p>아직 등록된 주문이 없어요.</p>
-            </div>
-          ) : (
+          {assetSummary ? (
             <div className="flex flex-col text-sm text-[#4B5563]">
               <div className="flex items-start justify-between pt-2">
                 <h3 className="text-base font-semibold text-[#111827]">
@@ -426,30 +420,54 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
                   <dt className="text-sm font-medium text-[#111827]">
                     총 수익
                   </dt>
-                  <dd className="text-right text-base font-semibold text-[#E53333]">
-                    +{formatCurrency(myOrder.totalProfit)} (
-                    {formatRate(myOrder.profitRate)})
+                  <dd
+                    className={`text-right text-base font-semibold ${
+                      assetSummary.totalProfitAmount > 0
+                        ? 'text-[#E53333]'
+                        : assetSummary.totalProfitAmount < 0
+                          ? 'text-[#1D4ED8]'
+                          : 'text-[#6B7280]'
+                    }`}
+                  >
+                    {formatProfitAmount(assetSummary.totalProfitAmount)} (
+                    {formatRate(Number(assetSummary.totalProfitRate ?? 0))})
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6 pt-[10px]">
                   <dt className="text-xs text-[#6B7280]">총 금액</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {formatCurrency(myOrder.totalAmount)}
+                    {formatCurrency(assetSummary.totalAmount)}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
                   <dt className="text-xs text-[#6B7280]">수량</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {myOrder.quantity.toLocaleString('ko-KR')}주
+                    {assetSummary.quantity.toLocaleString('ko-KR')}주
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
                   <dt className="text-xs text-[#6B7280]">1주 평균 금액</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {formatCurrency(myOrder.averagePrice)}
+                    {formatCurrency(assetSummary.avgBuyPrice)}
                   </dd>
                 </div>
               </dl>
+            </div>
+          ) : hasHydrated ? (
+            <div className="flex flex-col items-center gap-4 py-8 text-sm text-gray-500">
+              <Image
+                src={myHomeEmptyIcon}
+                alt="내 자산 정보 없음"
+                width={64}
+                height={64}
+                priority
+              />
+              <p className="mt-3 text-[#5A6A86]">내 자산 정보가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-8 text-sm text-gray-500">
+              <div className="h-12 w-12 rounded-full bg-gray-200" />
+              <div className="h-3 w-24 rounded-full bg-gray-100" />
             </div>
           )}
         </CardContent>

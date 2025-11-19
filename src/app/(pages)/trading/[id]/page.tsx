@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { TradingChart } from '@/components/trade/chart/chart';
 import { OrderForm } from '@/components/trade/chart/order-form';
+import type { AssetSummary as OrderAssetSummary } from '@/components/trade/chart/order-form';
 import { OrderBook } from '@/components/trade/chart/orderbook';
 import {
   RevenueInfoCard,
@@ -53,6 +54,15 @@ type ProductDetailResponse = {
   details: ProductDetails;
 };
 
+type AssetResponse = {
+  product_name: string;
+  quantity: number;
+  avg_buy_price: number;
+  total_amount: number;
+  total_profit_amount: number;
+  total_profit_rate: number;
+};
+
 export default function TradingDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -61,6 +71,7 @@ export default function TradingDetailPage() {
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
   const [notices, setNotices] = useState<Notice[] | undefined>(undefined);
+  const [assetSummary, setAssetSummary] = useState<OrderAssetSummary | null>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<'chart' | 'info', HTMLButtonElement | null>>({
     chart: null,
@@ -138,6 +149,33 @@ export default function TradingDetailPage() {
     };
 
     fetchDetails();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchAsset = async () => {
+      try {
+        const res = await apiFetch(`/v1/market/${id}/asset`);
+        if (!res.ok) {
+          console.warn(`Failed to load asset summary: ${res.status}`);
+          setAssetSummary(null);
+          return;
+        }
+        const data = (await res.json()) as AssetResponse;
+        setAssetSummary({
+          productName: data.product_name,
+          quantity: data.quantity,
+          avgBuyPrice: data.avg_buy_price,
+          totalAmount: data.total_amount,
+          totalProfitAmount: data.total_profit_amount,
+          totalProfitRate: data.total_profit_rate,
+        });
+      } catch (error) {
+        console.error('Failed to fetch asset summary', error);
+        setAssetSummary(null);
+      }
+    };
+
+    fetchAsset();
   }, [id]);
 
   const mappedInfo = useMemo<SecurityInfo | null>(() => {
@@ -297,7 +335,7 @@ export default function TradingDetailPage() {
 
             {/* Order Form - Middle Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[320px]">
-              <OrderForm currentPrice={productInfo?.current_price ?? 0} />
+              <OrderForm currentPrice={productInfo?.current_price ?? 0} assetSummary={assetSummary} />
             </div>
 
             {/* Order Book - Right Column */}
