@@ -1,7 +1,6 @@
-﻿"use client"
+"use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -11,11 +10,11 @@ import { Button } from "../components/ui/button"
 import { Checkbox } from "../components/ui/checkbox"
 import Logo from "../../main/assets/Logo.png"
 import DownIcon from "../assets/down_icon.png"
+import { apiFetch } from "@/lib/api-client"
 
 const CARRIERS = ["SKT", "KT", "LG U+", "알뜰폰"] as const
 
 type Carrier = (typeof CARRIERS)[number]
-
 type AgreementId = "phone" | "personal" | "junior"
 
 type FormState = {
@@ -42,7 +41,7 @@ const carrierButtonBase =
 const DEFAULT_CARRIER_TEXT = "text-[#8C92A3]"
 
 const AGREEMENTS = [
-  { id: "phone", label: "휴대폰 본인 확인 서비스 약관동의", required: true },
+  { id: "phone", label: "휴대폰 본인 인증 안내 동의", required: true },
   { id: "personal", label: "개인(신용)정보 수집 이용 동의", required: true },
   { id: "junior", label: "준회원 이용약관", required: false },
 ] satisfies Array<{ id: AgreementId; label: string; required: boolean }>
@@ -60,6 +59,10 @@ export default function VerificationPage() {
   const [selectedCarrier, setSelectedCarrier] = useState<Carrier | "">("")
   const [verificationSent, setVerificationSent] = useState(false)
   const [verificationConfirmed, setVerificationConfirmed] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
   const [agreements, setAgreements] = useState({
     all: false,
     phone: false,
@@ -81,14 +84,81 @@ export default function VerificationPage() {
     return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`
   }
 
+  const birthForApi = () => {
+    const digits = formData.birthDate.replace(/\D/g, "").slice(0, 8)
+    if (digits.length !== 8) return digits
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`
+  }
+
+  const canSendVerification =
+    !!(formData.name && formData.birthDate && selectedCarrier && formData.phoneNumber)
+  const canConfirmCode = !!(verificationSent && formData.verificationCode.trim() && !verificationConfirmed)
+
   const handleSendVerification = () => {
-    if (!formData.phoneNumber) return
-    setVerificationSent(true)
-    alert("인증번호가 발송되었습니다")
+    if (!canSendVerification || isSending) return
+    setSendError(null)
+    setIsSending(true)
+
+    const digits = formData.phoneNumber.replace(/\D/g, "")
+    const body = new URLSearchParams()
+    body.append("phone", digits)
+
+    apiFetch("/v1/auth/otp/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          let detail: string | undefined
+          try {
+            const err = (await res.json()) as { detail?: string }
+            detail = err.detail
+          } catch {
+            /* ignore */
+          }
+          setSendError(detail || "인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.")
+          return
+        }
+        setVerificationSent(true)
+      })
+      .catch(() => setSendError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."))
+      .finally(() => setIsSending(false))
   }
 
   const handleConfirmVerification = () => {
-    if (formData.verificationCode) setVerificationConfirmed(true)
+    if (!canConfirmCode || isVerifying) return
+    setVerifyError(null)
+    setIsVerifying(true)
+
+    const phoneDigits = formData.phoneNumber.replace(/\D/g, "")
+    const birth = birthForApi()
+    const body = new URLSearchParams()
+    body.append("phone", phoneDigits)
+    body.append("code", formData.verificationCode)
+    body.append("birth", birth)
+
+    apiFetch("/v1/auth/otp/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          let detail: string | undefined
+          try {
+            const err = (await res.json()) as { detail?: string }
+            detail = err.detail
+          } catch {
+            /* ignore */
+          }
+          setVerifyError(detail || "인증번호 확인에 실패했습니다. 다시 시도해주세요.")
+          return
+        }
+        setVerificationConfirmed(true)
+      })
+      .catch(() => setVerifyError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."))
+      .finally(() => setIsVerifying(false))
   }
 
   const toggleAgreement = (key: AgreementId, checked: boolean) => {
@@ -124,14 +194,23 @@ export default function VerificationPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!formData.nationality) {
-      alert("국적을 선택해주세요")
+      alert("국적을 선택해주세요.")
       return
     }
     if (!formData.gender) {
-      alert("성별을 선택해주세요")
+      alert("성별을 선택해주세요.")
       return
     }
-    if (isFormValid()) router.push("/auth/signup")
+    if (isFormValid()) {
+      const phoneDigits = formData.phoneNumber.replace(/\D/g, "")
+      const birth = birthForApi()
+      const query = new URLSearchParams({
+        phone: phoneDigits,
+        birth,
+        verified: "true",
+      })
+      router.push(`/auth/signup?${query.toString()}`)
+    }
   }
 
   const renderCarrierButton = (carrier: Carrier, index: number) => {
@@ -155,7 +234,7 @@ export default function VerificationPage() {
   const secondaryButtonClass = (disabled: boolean) =>
     disabled
       ? `${secondaryButtonBase} bg-[#E7EAF1] text-[#9EA4B3]`
-      : `${secondaryButtonBase} bg-[#BCC0C8] text-white hover:bg-[#B0B5BE]`
+      : `${secondaryButtonBase} bg-[#3386E5] text-white hover:bg-[#2D75D6]`
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-10 px-6 md:px-12 lg:px-0">
@@ -169,7 +248,7 @@ export default function VerificationPage() {
         <div className="space-y-4">
           <div className="space-y-1">
             <h1 className="text-[26px] font-bold text-left text-[#1F2229]">Welcome To IPiece</h1>
-            <h2 className="text-[18px] font-bold text-[#22242A]">본인인증</h2>
+            <h2 className="text-[18px] font-bold text-[#22242A]">본인 인증</h2>
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -198,8 +277,8 @@ export default function VerificationPage() {
                     <option value="" className="text-center" style={{ textAlign: "center" }}>
                       국적
                     </option>
-                    <option value="내국인" className="text-center" style={{ textAlign: "center" }}>
-                      내국인
+                    <option value="대한민국" className="text-center" style={{ textAlign: "center" }}>
+                      대한민국
                     </option>
                     <option value="외국인" className="text-center" style={{ textAlign: "center" }}>
                       외국인
@@ -221,7 +300,7 @@ export default function VerificationPage() {
                 <label className="text-[17px] font-semibold text-[#262933]">생년월일</label>
                 <Input
                   type="text"
-                  placeholder="YYYY MM DD"
+                  placeholder="YYYY.MM.DD"
                   maxLength={10}
                   value={formData.birthDate}
                   onChange={(e) => setFormData({ ...formData, birthDate: formatBirthDate(e.target.value) })}
@@ -276,12 +355,13 @@ export default function VerificationPage() {
               <Button
                 type="button"
                 onClick={handleSendVerification}
-                disabled={verificationSent}
-                className={secondaryButtonClass(verificationSent)}
+                disabled={verificationSent || !canSendVerification || isSending}
+                className={secondaryButtonClass(verificationSent || !canSendVerification || isSending)}
               >
-                인증번호 발송
+                {isSending ? "발송 중..." : "인증번호 발송"}
               </Button>
             </div>
+            {sendError ? <p className="text-xs text-red-500 text-right">{sendError}</p> : null}
 
             <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-4">
               <Input
@@ -298,12 +378,13 @@ export default function VerificationPage() {
               <Button
                 type="button"
                 onClick={handleConfirmVerification}
-                disabled={verificationConfirmed || !verificationSent}
-                className={secondaryButtonClass(verificationConfirmed || !verificationSent)}
+                disabled={!canConfirmCode || isVerifying}
+                className={secondaryButtonClass(!canConfirmCode || isVerifying)}
               >
-                확인
+                {isVerifying ? "확인 중..." : "확인"}
               </Button>
             </div>
+            {verifyError ? <p className="text-xs text-red-500 text-right">{verifyError}</p> : null}
 
             <div className="space-y-3 pt-1">
               <div className="flex items-center space-x-3">
@@ -313,7 +394,7 @@ export default function VerificationPage() {
                   onCheckedChange={(checked) => handleAllAgreement(checked === true)}
                 />
                 <label htmlFor="all" className="text-[15px] font-semibold text-[#262933] cursor-pointer">
-                  약관에 모두 동의
+                  이용약관 모두 동의
                 </label>
               </div>
 
@@ -340,11 +421,7 @@ export default function VerificationPage() {
               <Button
                 type="submit"
                 disabled={!isFormValid()}
-                className={`w-full h-[56px] rounded-[8px] text-[14px] font-semibold transition cursor-pointer disabled:cursor-not-allowed ${
-                  isFormValid()
-                    ? "bg-[#3386E5] text-white hover:bg-[#2D75D6]"
-                    : "bg-[#D9DDE5] text-[#A0A6B0]"
-                }`}
+                className="w-full h-12 rounded-[10px] bg-[#3386E5] text-white text-[15px] font-semibold hover:bg-[#2D75D6] disabled:bg-[#E7EAF1] disabled:text-[#9EA4B3] disabled:cursor-not-allowed"
               >
                 다음
               </Button>
