@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import Logo from "../assets/Logo.png"
 import { Button } from "../components/ui/button"
+import { ACCESS_TOKEN_KEY } from "@/lib/auth"
 
 export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -20,15 +21,9 @@ export function Header() {
     "text-sm font-semibold cursor-pointer relative after:content-[''] after:absolute after:left-0 after:-bottom-1.5 after:h-[2px] after:bg-current after:transition-all after:duration-200"
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
-    const match = document.cookie
-      .split(';')
-      .map((c) => c.trim())
-      .find((c) => c.startsWith('logged_in='))
-    if (match) {
-      const value = decodeURIComponent(match.split('=')[1] || '')
-      setIsLoggedIn(value === 'true')
-    }
+    if (typeof window === "undefined") return
+    const hasAccessToken = !!localStorage.getItem(ACCESS_TOKEN_KEY)
+    setIsLoggedIn(hasAccessToken)
   }, [])
 
   return (

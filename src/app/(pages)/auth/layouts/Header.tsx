@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import Logo from "../../main/assets/Logo.png"
 import { Button } from "../components/ui/button"
+import { ACCESS_TOKEN_KEY } from "@/lib/auth"
 
 export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -20,15 +21,9 @@ export function Header() {
     "text-sm font-semibold cursor-pointer relative after:content-[''] after:absolute after:left-0 after:-bottom-1.5 after:h-[2px] after:bg-current after:transition-all after:duration-200"
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
-    const match = document.cookie
-      .split(';')
-      .map((c) => c.trim())
-      .find((c) => c.startsWith('logged_in='))
-    if (match) {
-      const value = decodeURIComponent(match.split('=')[1] || '')
-      setIsLoggedIn(value === 'true')
-    }
+    if (typeof window === "undefined") return
+    const hasAccessToken = !!localStorage.getItem(ACCESS_TOKEN_KEY)
+    setIsLoggedIn(hasAccessToken)
   }, [])
 
   return (
@@ -43,13 +38,13 @@ export function Header() {
               href="/main?tab=offering"
               className={`${navBase} ${isOfferingActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}`}
             >
-              {'\uACF5\uBAA8'}
+              {'공모'}
             </Link>
             <Link
               href="/main?tab=trading"
               className={`${navBase} ${isTradingActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}`}
             >
-              {'\uC99D\uAD8C \uAC70\uB798'}
+              {'증권 거래'}
             </Link>
           </nav>
         </div>
@@ -62,10 +57,10 @@ export function Header() {
           ) : (
             <>
               <Button asChild size="sm" className="bg-[#3386E5] text-white hover:bg-[#2a6bc4] cursor-pointer">
-                <Link href="/auth/login">{'\uB85C\uADF8\uC778'}</Link>
+                <Link href="/auth/login">{'로그인'}</Link>
               </Button>
               <Button asChild size="sm" className="bg-[#F2F2F7] text-[#303030] hover:bg-[#e5e5ea] cursor-pointer">
-                <Link href="/auth/verification">{'\uD68C\uC6D0\uAC00\uC785'}</Link>
+                <Link href="/auth/verification">{'회원가입'}</Link>
               </Button>
             </>
           )}
