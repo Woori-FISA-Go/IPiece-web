@@ -23,12 +23,7 @@ export function Header() {
   useEffect(() => {
     if (typeof window === "undefined") return
     const hasAccessToken = !!localStorage.getItem(ACCESS_TOKEN_KEY)
-    if (hasAccessToken) {
-      setIsLoggedIn(true)
-      return
-    }
-    const loggedFlag = localStorage.getItem("logged_in")
-    setIsLoggedIn(loggedFlag === "true")
+    setIsLoggedIn(hasAccessToken)
   }, [])
 
   return (

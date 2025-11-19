@@ -15,5 +15,4 @@ export function clearTokens() {
   if (typeof window === "undefined") return
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
-  localStorage.removeItem("logged_in")
 }

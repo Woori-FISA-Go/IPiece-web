@@ -59,11 +59,6 @@ export default function LoginPage() {
       if (data.accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken)
       if (data.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
 
-      if (typeof window !== "undefined") {
-        // lightweight logged-in flag for UI; token validation should be done server-side where needed
-        localStorage.setItem("logged_in", "true")
-      }
-
       router.push("/main")
     } catch (err) {
       console.error("Login failed", err)
