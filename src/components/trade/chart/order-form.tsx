@@ -5,12 +5,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import myHomeEmptyIcon from '@/assets/images/my_home_empty_state_icon.svg';
+import { apiFetch } from '@/lib/api-client';
 
 type OrderTab = 'buy' | 'sell' | 'pending';
 
 interface OrderFormProps {
   currentPrice: number;
   assetSummary: AssetSummary | null;
+  productId?: number | string;
 }
 
 export type AssetSummary = {
@@ -22,6 +24,20 @@ export type AssetSummary = {
   totalProfitRate: number;
 };
 
+type BuyOrderResponse = {
+  status_code?: number;
+  order_id?: string;
+  product_id?: number;
+  side?: string;
+  order_price?: number;
+  order_quantity?: number;
+  total_amount?: number;
+  filled_quantity?: number;
+  remaining_quantity?: number;
+  created_at?: string;
+  idempotency_key?: string;
+};
+
 type PendingOrder = {
   id: string;
   side: Exclude<OrderTab, 'pending'>;
@@ -30,38 +46,129 @@ type PendingOrder = {
   createdAt: number;
 };
 
-export function OrderForm({ currentPrice, assetSummary }: OrderFormProps) {
+type PendingOrderResponse = {
+  page?: number;
+  content?: Array<{
+    order_id: string;
+    side: 'buy' | 'sell';
+    order_price: number;
+    order_quantity: number;
+    created_at: string;
+  }>;
+};
+
+export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
-  const [orderType] = useState('limit');
   const [price, setPrice] = useState(currentPrice);
   const [quantity, setQuantity] = useState(1);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     setHasHydrated(true);
   }, []);
 
-  const handleSubmit = () => {
-    if (activeTab === 'pending') return;
+  useEffect(() => {
+    const fetchPendingOrders = async () => {
+      const numericProductId = Number(productId);
+      if (!Number.isFinite(numericProductId)) return;
 
-    const newOrder: PendingOrder = {
-      id: `${Date.now()}`,
-      side: activeTab,
-      price,
-      quantity,
-      createdAt: Date.now(),
+      try {
+        const res = await apiFetch(`/v1/market/${numericProductId}/orderbook/status=pending`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1 }),
+        });
+        if (!res.ok) {
+          console.warn(`Failed to load pending orders: ${res.status}`);
+          return;
+        }
+        const data = (await res.json()) as PendingOrderResponse;
+        const normalized = data.content?.map((order) => ({
+          id: order.order_id,
+          side: order.side,
+          price: order.order_price,
+          quantity: order.order_quantity,
+          createdAt: Date.parse(order.created_at) || Date.now(),
+        })) ?? [];
+        setPendingOrders(normalized);
+      } catch (error) {
+        console.error('Failed to fetch pending orders', error);
+      }
     };
 
-    setPendingOrders((prev) => [newOrder, ...prev]);
-    console.log('[v0] Order queued:', {
-      ...newOrder,
-      orderType,
-      total: newOrder.price * newOrder.quantity,
-    });
+    fetchPendingOrders();
+  }, [productId]);
 
-    setPrevTab(activeTab);
-    setActiveTab('pending');
+  const handleSubmit = async () => {
+    if (activeTab === 'pending' || isSubmitting) return;
+
+    const numericProductId = Number(productId);
+    if (!Number.isFinite(numericProductId)) {
+      setSubmitError('상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    const payload = {
+      order_price: price,
+      order_quantity: quantity,
+      client_time: new Date().toISOString(),
+    };
+
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const endpoint = activeTab === 'sell' ? 'sell' : 'buy';
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await apiFetch(`/v1/market/${numericProductId}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const actionLabel = activeTab === 'sell' ? '판매' : '구매';
+        let errMsg = `${actionLabel} 주문에 실패했습니다. (코드 ${res.status})`;
+        try {
+          const errorBody = (await res.json()) as { detail?: string };
+          if (errorBody?.detail) errMsg = errorBody.detail;
+        } catch {
+          // ignore
+        }
+        setSubmitError(errMsg);
+        return;
+      }
+
+      const data = (await res.json()) as BuyOrderResponse;
+      const createdAtTs = data.created_at ? Date.parse(data.created_at) : Date.now();
+      const newOrder: PendingOrder = {
+        id: data.order_id ?? `${Date.now()}`,
+        side: (data.side as PendingOrder['side']) ?? activeTab,
+        price: data.order_price ?? price,
+        quantity: data.order_quantity ?? quantity,
+        createdAt: Number.isNaN(createdAtTs) ? Date.now() : createdAtTs,
+      };
+
+      setPendingOrders((prev) => [newOrder, ...prev]);
+      setPrevTab(activeTab);
+      setActiveTab('pending');
+    } catch (error) {
+      console.error('Order failed', error);
+      setSubmitError('주문 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const incrementPrice = () => setPrice((p) => p + 100);
@@ -295,14 +402,18 @@ export function OrderForm({ currentPrice, assetSummary }: OrderFormProps) {
               <div className="mt-auto pt-4 pb-1">
                 <button
                   onClick={handleSubmit}
-                  className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors"
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: tabStyles.accent,
                     boxShadow: `0 8px 16px -12px ${tabStyles.accent}`,
                   }}
                 >
-                  {tabStyles.buttonLabel}
+                  {isSubmitting ? '주문 중...' : tabStyles.buttonLabel}
                 </button>
+                {submitError ? (
+                  <p className="mt-2 text-xs text-red-500">{submitError}</p>
+                ) : null}
               </div>
             </div>
           )}

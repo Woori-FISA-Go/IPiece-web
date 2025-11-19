@@ -112,6 +112,7 @@ export default function TradingDetailPage() {
     height: 0,
   });
 
+
   const updateHighlightPosition = () => {
     const container = tabContainerRef.current;
     const activeButton = tabRefs.current[activeTab];
@@ -298,8 +299,14 @@ export default function TradingDetailPage() {
       : 'text-[#3386E5]';
 
   const infoForCards: SecurityInfo = mappedInfo ?? MOCK_INFO;
+  const fallbackThumbnail = 'https://via.placeholder.com/64x64.png?text=IP';
+  const [thumbnailSrc, setThumbnailSrc] = useState(fallbackThumbnail);
 
-  const thumbnailSrc = productInfo?.thumbnail_img || infoForCards.heroImage;
+  useEffect(() => {
+    const candidate = productInfo?.thumbnail_img || infoForCards.heroImage || '';
+    const nextSrc = candidate.trim().length > 0 ? candidate : fallbackThumbnail;
+    setThumbnailSrc(nextSrc);
+  }, [productInfo?.thumbnail_img, infoForCards.heroImage]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -308,14 +315,10 @@ export default function TradingDetailPage() {
         <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100" suppressHydrationWarning>
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={
-                    thumbnailSrc && thumbnailSrc.trim().length > 0
-                      ? thumbnailSrc
-                      : 'https://via.placeholder.com/64x64.png?text=IP'
-                  }
+                  src={thumbnailSrc}
                   alt={`${productInfo?.product_name ?? infoForCards.name} 썸네일`}
                   className="h-full w-full object-cover"
                 />
@@ -411,7 +414,11 @@ export default function TradingDetailPage() {
 
             {/* Order Form - Middle Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[320px]">
-              <OrderForm currentPrice={productInfo?.current_price ?? 0} assetSummary={assetSummary} />
+              <OrderForm
+                currentPrice={productInfo?.current_price ?? 0}
+                assetSummary={assetSummary}
+                productId={productInfo?.product_id ?? Number(id)}
+              />
             </div>
 
             {/* Order Book - Right Column */}
