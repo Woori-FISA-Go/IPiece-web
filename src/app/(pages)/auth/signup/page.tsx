@@ -1,25 +1,30 @@
-﻿"use client"
+"use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
 import { MediaUploadModal } from "../components/media-upload-modal"
 import Logo from "../../main/assets/Logo.png"
+import FolderIcon from "../assets/folder_icon.png"
+import { apiFetch } from "@/lib/api-client"
 
 const inputFieldClass =
   "h-[52px] rounded-[8px] border border-[#E0E4EC] bg-white px-4 text-[14px] text-[#1F2229] placeholder:text-[#A0A6B0] focus-visible:ring-0 focus-visible:border-[#3386E5]"
 
 const labelClass = "block text-[12px] font-semibold mb-2"
-
 const helperTextClass = "text-[12px]"
 
 export default function SignupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const phoneFromVerify = useMemo(() => searchParams.get("phone") || "", [searchParams])
+  const birthFromVerify = useMemo(() => searchParams.get("birth") || "", [searchParams])
+  const verifiedFromVerify = useMemo(() => searchParams.get("verified") === "true", [searchParams])
+
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -31,74 +36,72 @@ export default function SignupPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
   const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [passwordMatch, setPasswordMatch] = useState<boolean | null>(null)
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleCheckUsername = () => {
+  const handleCheckUsername = async () => {
     const username = formData.username.trim()
 
     if (!username) {
-      setUsernameError("\uC544\uC774\uB514\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.")
+      setUsernameError("아이디를 입력해주세요.")
       setUsernameAvailable(false)
       return
     }
 
     if (username.length < 5) {
-      setUsernameError("\uC544\uC774\uB514\uB294 5\uC790 \uC774\uC0C1\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4.")
+      setUsernameError("아이디는 5자 이상이어야 합니다.")
       setUsernameAvailable(false)
       return
     }
 
     if (!/^[A-Za-z0-9]+$/.test(username)) {
-      setUsernameError("\uC544\uC774\uB514\uB294 \uC601\uBB38\uACFC \uC22B\uC790\uB9CC \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.")
+      setUsernameError("아이디는 영문과 숫자만 사용할 수 있습니다.")
       setUsernameAvailable(false)
       return
     }
 
     try {
-      if (typeof window !== "undefined") {
-        const storedList = window.localStorage.getItem("ipiece_users")
-        const existingUsers: Array<{ username: string }> = storedList ? JSON.parse(storedList) : []
+      setIsCheckingUsername(true)
+      const search = new URLSearchParams({ id: username })
+      const res = await apiFetch(`/v1/signup/duplicate-check?${search.toString()}`, {
+        method: "GET",
+      })
 
-        if (existingUsers.some((user) => user.username === username)) {
-          setUsernameError("\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC544\uC774\uB514\uC785\uB2C8\uB2E4.")
-          setUsernameAvailable(false)
-          return
-        }
+      const data = (await res.json().catch(() => ({}))) as { available?: boolean; message?: string }
 
-        const legacyUser = window.localStorage.getItem("ipiece_user")
-        if (legacyUser) {
-          const parsed = JSON.parse(legacyUser)
-          if (parsed?.username === username) {
-            setUsernameError("\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC544\uC774\uB514\uC785\uB2C8\uB2E4.")
-            setUsernameAvailable(false)
-            return
-          }
-        }
+      if (!res.ok || data.available === false) {
+        setUsernameError(data.message || "중복 확인에 실패했습니다.")
+        setUsernameAvailable(false)
+        return
       }
 
       setUsernameError(null)
       setUsernameAvailable(true)
     } catch (error) {
       console.error("Failed to check username availability", error)
-      setUsernameError("\uC544\uC774\uB514 \uD655\uC778 \uC911 \uBB38\uC81C\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.")
+      setUsernameError("서버 연결을 확인하고 다시 시도해주세요.")
       setUsernameAvailable(false)
+    } finally {
+      setIsCheckingUsername(false)
     }
   }
 
-  const validatePassword = (password: string): string[] => {
+  const buildPasswordErrors = (password: string): string[] => {
     const errors: string[] = []
-    if (password.length < 8) errors.push("鍮꾨?踰덊샇??理쒖냼 8???댁긽?댁뼱???⑸땲??")
-    if (!/[A-Z]/.test(password)) errors.push("鍮꾨?踰덊샇???臾몄옄媛 ?ы븿?섏뼱???⑸땲??")
-    if (!/[a-z]/.test(password)) errors.push("鍮꾨?踰덊샇???뚮Ц?먭? ?ы븿?섏뼱???⑸땲??")
-    if (!/[0-9]/.test(password)) errors.push("鍮꾨?踰덊샇???レ옄媛 ?ы븿?섏뼱???⑸땲??")
-    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password)) errors.push("鍮꾨?踰덊샇???뱀닔臾몄옄媛 ?ы븿?섏뼱???⑸땲??")
+    if (password.length < 8) errors.push("비밀번호는 최소 8자 이상이어야 합니다.")
+    if (!/[A-Z]/.test(password)) errors.push("비밀번호는 대문자가 1자 이상 포함되어야 합니다.")
+    if (!/[a-z]/.test(password)) errors.push("비밀번호는 소문자가 1자 이상 포함되어야 합니다.")
+    if (!/[0-9]/.test(password)) errors.push("비밀번호는 숫자가 1자 이상 포함되어야 합니다.")
+    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password)) errors.push("비밀번호는 특수문자가 1자 이상 포함되어야 합니다.")
     return errors
   }
 
   const handlePasswordChange = (value: string) => {
     setFormData({ ...formData, password: value })
-    setPasswordErrors(value ? validatePassword(value) : [])
+    setPasswordErrors(value ? buildPasswordErrors(value) : [])
     if (formData.passwordConfirm) {
       setPasswordMatch(value === formData.passwordConfirm)
     }
@@ -124,39 +127,68 @@ export default function SignupPage() {
       passwordMatch &&
       formData.name &&
       formData.address &&
-      uploadedFiles.length > 0
+      uploadedFiles.length > 0 &&
+      phoneFromVerify &&
+      birthFromVerify &&
+      verifiedFromVerify
     )
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    setSubmitError(null)
     if (!isFormValid()) return
+    if (!uploadedFiles[0]) {
+      setSubmitError("신분증 파일을 업로드해주세요.")
+      return
+    }
+
+    setIsSubmitting(true)
+
     try {
-      const user = {
-        username: formData.username,
+      const fileUrl = uploadedFiles[0]
+      const blob = await fetch(fileUrl).then((res) => res.blob())
+      const fileName = "id_card" + (blob.type.includes("pdf") ? ".pdf" : ".png")
+      const idCardFile = new File([blob], fileName, { type: blob.type || "application/octet-stream" })
+
+      const requestPayload = {
+        id: formData.username,
         password: formData.password,
         name: formData.name,
         address: formData.address,
-        files: uploadedFiles,
+        phone: phoneFromVerify,
+        birth: birthFromVerify,
+        verified: verifiedFromVerify,
       }
-      if (typeof window !== "undefined") {
-        const storedList = window.localStorage.getItem("ipiece_users")
-        const users: Array<typeof user> = storedList ? JSON.parse(storedList) : []
-        if (users.some((existing) => existing.username === user.username)) {
-          setUsernameError("\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC544\uC774\uB514\uC785\uB2C8\uB2E4.")
-          setUsernameAvailable(false)
-          alert("\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC544\uC774\uB514\uC785\uB2C8\uB2E4.")
-          return
+
+      const body = new FormData()
+      body.append("request", new Blob([JSON.stringify(requestPayload)], { type: "application/json" }))
+      body.append("id_card", idCardFile)
+
+      const res = await apiFetch("/v1/signup/info", {
+        method: "POST",
+        body,
+      })
+
+      if (!res.ok) {
+        let message: string | undefined
+        try {
+          const err = (await res.json()) as { detail?: string; message?: string }
+          message = err.detail || err.message
+        } catch {
+          /* ignore */
         }
-        users.push(user)
-        window.localStorage.setItem("ipiece_users", JSON.stringify(users))
-        window.localStorage.setItem("ipiece_user", JSON.stringify(user))
+        throw new Error(message || "회원가입에 실패했습니다.")
       }
+
+      alert("회원가입 완료")
       router.push("/auth/login")
-    } catch (e) {
-      alert("\uAC00\uC785 \uCC98\uB9AC \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.")
+    } catch (err) {
+      console.error("Signup failed", err)
+      setSubmitError(err instanceof Error ? err.message : "회원가입에 실패했습니다.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
-  const dragText = "Drag your file to start uploading"
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-10 px-6 md:px-12 lg:px-0">
@@ -166,24 +198,24 @@ export default function SignupPage() {
             <Image src={Logo} alt="IPIECE Logo" className="h-10 w-auto object-contain" />
           </Link>
         </div>
-        <h1 className="mb-6 text-left text-[20px] font-bold">{"\uD68C\uC6D0\uAC00\uC785"}</h1>
+        <h1 className="mb-6 text-left text-[20px] font-bold">회원가입</h1>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <label className={labelClass}>
-              {"\uC544\uC774\uB514"} <span className="text-red-500">*</span>
+              아이디 <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
               <Input
                 type="text"
-                placeholder={"\uC544\uC774\uB514\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694."}
+                placeholder="아이디를 입력해주세요."
                 value={formData.username}
                 onChange={(e) =>
                   setFormData((prev) => {
                     const nextValue = e.target.value.replace(/[^A-Za-z0-9]/g, "")
                     setUsernameAvailable(null)
                     if (nextValue && nextValue.length < 5) {
-                      setUsernameError("\uC544\uC774\uB514\uB294 5\uC790 \uC774\uC0C1\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4.")
+                      setUsernameError("아이디는 5자 이상이어야 합니다.")
                     } else {
                       setUsernameError(null)
                     }
@@ -195,10 +227,11 @@ export default function SignupPage() {
               <Button
                 type="button"
                 onClick={handleCheckUsername}
+                disabled={isCheckingUsername}
                 variant="outline"
-                className="h-[52px] whitespace-nowrap rounded-[8px] border-[#3386E5] bg-transparent px-4 text-[12px] hover:bg-blue-50 cursor-pointer"
+                className="h-[52px] whitespace-nowrap rounded-[8px] border-[#3386E5] bg-transparent px-4 text-[12px] hover:bg-blue-50 cursor-pointer disabled:cursor-not-allowed"
               >
-                {"\uC911\uBCF5\uAC80\uC0AC"}
+                {isCheckingUsername ? "확인 중..." : "중복검사"}
               </Button>
             </div>
             {usernameAvailable === true && (
@@ -209,12 +242,10 @@ export default function SignupPage() {
                   width={16}
                   height={16}
                 />
-                <span className={`${helperTextClass} text-black`}>
-                  {"\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uC544\uC774\uB514\uC785\uB2C8\uB2E4."}
-                </span>
+                <span className={`${helperTextClass} text-black`}>사용 가능한 아이디입니다.</span>
               </div>
             )}
-            {usernameError && (
+            {usernameAvailable === false && usernameError && (
               <div className="flex items-center gap-2 rounded-md bg-[#FEF1F2] px-3 py-2">
                 <img
                   src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Error-K9PTWKSZz4DbA3eEFw6aS3Om28TIS2.png"
@@ -222,23 +253,18 @@ export default function SignupPage() {
                   width={16}
                   height={16}
                 />
-                <span className={`${helperTextClass} text-black`}>{usernameError}</span>
+                <span className={`${helperTextClass} text-[#E83B46]`}>{usernameError}</span>
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <label className={labelClass}>
-                {"\uBE44\uBC00\uBC88\uD638"} <span className="text-red-500">*</span>
-              </label>
-              <span className="text-[11px] text-gray-500">
-                {"8\uC790 \uC774\uC0C1, \uB300/\uC18C\uBB38\uC790, \uC22B\uC790, \uD2B9\uC218\uBB38\uC790 \uD3EC\uD568"}
-              </span>
-            </div>
+            <label className={labelClass}>
+              비밀번호 <span className="text-red-500">*</span>
+            </label>
             <Input
               type="password"
-              placeholder={"\uBE44\uBC00\uBC88\uD638 \uC785\uB825"}
+              placeholder="비밀번호 입력"
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
               className={inputFieldClass}
@@ -253,7 +279,7 @@ export default function SignupPage() {
                       width={16}
                       height={16}
                     />
-                    <span className={`${helperTextClass} text-black`}>{error}</span>
+                    <span className={`${helperTextClass} text-[#E83B46]`}>{error}</span>
                   </div>
                 ))}
               </div>
@@ -262,53 +288,36 @@ export default function SignupPage() {
 
           <div className="space-y-2">
             <label className={labelClass}>
-              {"\uBE44\uBC00\uBC88\uD638 \uD655\uC778"} <span className="text-red-500">*</span>
+              비밀번호 확인 <span className="text-red-500">*</span>
             </label>
             <Input
               type="password"
-              placeholder={"\uBE44\uBC00\uBC88\uD638 \uD655\uC778"}
+              placeholder="비밀번호 입력"
               value={formData.passwordConfirm}
               onChange={(e) => handlePasswordConfirmChange(e.target.value)}
               className={inputFieldClass}
             />
             {passwordMatch === false && (
-              <div className="flex items-center gap-2 rounded-md bg-[#FEF1F2] px-3 py-2">
-                <img
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Error-K9PTWKSZz4DbA3eEFw6aS3Om28TIS2.png"
-                  alt="Error"
-                  width={16}
-                  height={16}
-                />
-                <span className={`${helperTextClass} text-black`}>
-                  {"\uBE44\uBC00\uBC88\uD638\uAC00 \uC77C\uCE58\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."}
-                </span>
-              </div>
+              <p className={`${helperTextClass} text-[#E83B46]`}>비밀번호가 일치하지 않습니다.</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label className={labelClass}>
-              {"\uC774\uB984"} <span className="text-red-500">*</span>
-            </label>
+            <label className={labelClass}>이름</label>
             <Input
               type="text"
-              placeholder={"\uC774\uB984\uC744 \uC785\uB825\uD574\uC8FC\uC138\uC694."}
+              placeholder="이름을 입력해주세요."
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              onBlur={(e) =>
-                setFormData({ ...formData, name: e.target.value.replace(/[^a-zA-Z\uAC00-\uD7A3\s]/g, "") })
-              }
               className={inputFieldClass}
             />
           </div>
 
           <div className="space-y-2">
-            <label className={labelClass}>
-              {"\uC8FC\uC18C"} <span className="text-red-500">*</span>
-            </label>
+            <label className={labelClass}>주소</label>
             <Input
               type="text"
-              placeholder={"\uC8FC\uC18C\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694."}
+              placeholder="주소를 입력해주세요."
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className={inputFieldClass}
@@ -316,61 +325,37 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <label className={labelClass}>
-              {"\uC2E0\uBD84\uC99D \uC5C5\uB85C\uB4DC"} <span className="text-red-500">*</span>
-            </label>
-            <div className="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 p-7 text-center transition hover:border-blue-400 hover:bg-blue-50/50">
-              <div className="flex flex-col items-center gap-2.5">
-                <img
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/upload-K5PppdKIVEW0RAgCfvo4VeVLkTxlaG.png"
-                  alt="Upload"
-                  width={48}
-                  height={48}
-                />
-                <p className="text-[12px] text-gray-600">{dragText}</p>
-                <p className="text-[11px] text-gray-400">OR</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsModalOpen(true)}
-                  className="rounded-[8px] border-[#3386E5] px-4 py-2 text-[12px] text-[#3386E5] hover:bg-blue-50 cursor-pointer"
-                >
-                  Browse files
-                </Button>
+            <label className={labelClass}>신분증 사진 업로드</label>
+            <div
+              onClick={() => setIsModalOpen(true)}
+              className="cursor-pointer rounded-[10px] border border-dashed border-[#94B7F5] bg-[#F8FAFF] p-6 text-center transition hover:bg-[#eef4ff]"
+            >
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#E7F1FF]">
+                <Image src={FolderIcon} alt="폴더 아이콘" width={28} height={28} className="h-7 w-7 object-contain" />
               </div>
-            </div>
-            <div className="flex items-center gap-2 rounded-md bg-[#F0F5FF] px-3 py-2">
-              <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Info-rmFP19dDCiXfeGyzBAKgeTtDTHSSrA.png"
-                alt="Info"
-                width={16}
-                height={16}
-              />
-              <span className={`${helperTextClass} text-black`}>
-                {"\uC8FC\uBBFC\uBC88\uD638 \uB4B7\uC790\uB9AC\uB294 \uBC18\uB4DC\uC2DC \uAC00\uB9AC\uACE0 \uC62C\uB824\uC8FC\uC138\uC694"}
-              </span>
-            </div>
-            {uploadedFiles.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {uploadedFiles.map((file, index) => (
-                  <div key={index} className="rounded bg-gray-50 p-2 text-[12px] text-gray-700">
-                    {file}
-                  </div>
-                ))}
+              <p className="text-sm font-medium text-[#1F2229]">Drag your file(s) to start uploading</p>
+              <div className="my-3 text-xs text-[#A0A6B0]">OR</div>
+              <div className="inline-flex h-[36px] items-center justify-center rounded-[8px] border border-[#3386E5] px-4 text-[12px] font-semibold text-[#3386E5]">
+                Browse files
               </div>
-            )}
+              {uploadedFiles.length > 0 ? (
+                <p className="mt-3 text-xs text-[#1F2229]">{uploadedFiles.length}개 파일 업로드됨</p>
+              ) : null}
+            </div>
+            <div className="flex items-start gap-2 rounded-md bg-[#E8F4FF] px-3 py-2 text-[11px] text-[#1D4ED8]">
+              <span className="leading-5">ℹ️</span>
+              <span>주민번호 뒷자리는 반드시 가리고 올려주세요</span>
+            </div>
           </div>
+
+          {submitError ? <p className="text-sm text-red-500 text-right">{submitError}</p> : null}
 
           <Button
             type="submit"
-            disabled={!isFormValid()}
-            className={`w-full h-[56px] rounded-[8px] text-[14px] font-semibold transition cursor-pointer disabled:cursor-not-allowed ${
-              isFormValid()
-                ? "bg-[#3386E5] text-white hover:bg-[#2D75D6]"
-                : "bg-[#D9DDE5] text-[#A0A6B0]"
-            }`}
+            disabled={!isFormValid() || isSubmitting}
+            className="w-full bg-[#3386E5] text-white py-6 rounded-[8px] text-[13px] font-semibold hover:bg-[#2970cc] transition flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:bg-[#E8EBF1] disabled:text-[#9EA4B3]"
           >
-            {"\uAC00\uC785\uD558\uAE30"}
+            {isSubmitting ? "가입 중..." : "가입하기"}
           </Button>
         </form>
       </div>
@@ -386,7 +371,3 @@ export default function SignupPage() {
     </div>
   )
 }
-
-
-
-
