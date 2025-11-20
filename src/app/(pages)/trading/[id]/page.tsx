@@ -409,7 +409,7 @@ export default function TradingDetailPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[620px_320px_minmax(0,1fr)] lg:[--panel-height:640px] items-stretch">
             {/* Chart - Left Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[620px]">
-              <TradingChart />
+              <TradingChart productId={productInfo?.product_id ?? Number(id)} />
             </div>
 
             {/* Order Form - Middle Column */}

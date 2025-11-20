@@ -13,14 +13,21 @@ import {
   useId,
 } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  MOCK_CANDLES_1D,
-  MOCK_CANDLES_1M,
-  MOCK_CANDLES_1W,
-  type Candle,
-} from '@/lib/mock-trading';
+import type { Candle } from '@/lib/mock-trading';
+import { apiFetch } from '@/lib/api-client';
 
 type Period = '1D' | '1W' | '1M';
+type ChartInterval = '1d' | '1w' | '1m';
+
+type ChartApiResponse = {
+  product_id: number;
+  interval: ChartInterval;
+  window?: { start_at: string; end_at: string };
+  points?: Array<{ ts: string; price: number; volume?: number }>;
+  has_more?: boolean;
+  next_cursor?: string;
+  fetched_at?: string;
+};
 
 interface HoverPoint {
   candle: Candle;
@@ -28,8 +35,15 @@ interface HoverPoint {
   y: number;
 }
 
-export function TradingChart() {
-  const [period, setPeriod] = useState<Period>('1D');
+interface TradingChartProps {
+  productId?: number | string;
+}
+
+export function TradingChart({ productId }: TradingChartProps) {
+  const [period, setPeriod] = useState<Period>('1W');
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
@@ -45,14 +59,7 @@ export function TradingChart() {
     accumulated: 0,
   });
 
-  const data =
-    period === '1D'
-      ? MOCK_CANDLES_1D
-      : period === '1W'
-        ? MOCK_CANDLES_1W
-        : MOCK_CANDLES_1M;
-
-  const visibleData = data;
+  const visibleData = candles;
 
   const height = 320;
   const padding = { top: 68, right: 28, bottom: 88, left: 40 };
@@ -71,9 +78,7 @@ export function TradingChart() {
   );
   const chartHeight = height - padding.top - padding.bottom;
   const chartBaseline = padding.top + chartHeight;
-  const [mounted, setMounted] = useState(false);
   const gradientId = useId();
-  useEffect(() => setMounted(true), []);
 
   useLayoutEffect(() => {
     const element = chartScrollRef.current;
@@ -94,11 +99,12 @@ export function TradingChart() {
     const scroller = chartScrollRef.current;
     if (!scroller) return;
     scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
-  }, [period, data.length, baseCanvasWidth]);
+  }, [period, visibleData.length, baseCanvasWidth]);
 
-  const prices = visibleData.map((d) => d.c);
-  const minPrice = Math.min(...prices) * 0.98;
-  const maxPrice = Math.max(...prices) * 1.02;
+  const hasData = visibleData.length > 0;
+  const prices = hasData ? visibleData.map((d) => d.c) : [0];
+  const minPrice = hasData ? Math.min(...prices) * 0.98 : 0;
+  const maxPrice = hasData ? Math.max(...prices) * 1.02 : 0;
 
   const xScale = (index: number) => {
     if (visibleData.length <= 1) {
@@ -138,10 +144,10 @@ export function TradingChart() {
     };
   }, [chartBaseline, visibleData, xScale, yScale]);
 
-  const yTicks = useMemo(
-    () => [minPrice, (minPrice + maxPrice) / 2, maxPrice],
-    [maxPrice, minPrice],
-  );
+  const yTicks = useMemo(() => {
+    if (!hasData) return [0];
+    return [minPrice, (minPrice + maxPrice) / 2, maxPrice];
+  }, [hasData, minPrice, maxPrice]);
 
   const axisLabels = useMemo(() => {
     if (visibleData.length === 0) return [];
@@ -153,6 +159,68 @@ export function TradingChart() {
       return visibleData[idx]?.t ?? '';
     });
   }, [visibleData]);
+
+  const mapPointLabel = useCallback(
+    (timestamp: string) => {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return timestamp;
+      if (period === '1D') {
+        return `${date.getHours().toString().padStart(2, '0')}:${date
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`;
+      }
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    },
+    [period],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchChart = async () => {
+      if (!productId) {
+        setCandles([]);
+        return;
+      }
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        const intervalParam = period.toLowerCase() as ChartInterval;
+        const res = await apiFetch(
+          `/v1/market/${productId}/chart?interval=${intervalParam}`,
+        );
+        if (!res.ok) {
+          throw new Error(`Failed chart fetch: ${res.status}`);
+        }
+        const payload = (await res.json()) as ChartApiResponse;
+        const mapped = (payload.points ?? []).map((point) => ({
+          t: mapPointLabel(point.ts),
+          o: point.price,
+          h: point.price,
+          l: point.price,
+          c: point.price,
+          v: point.volume ?? 0,
+        }));
+        if (!cancelled) {
+          setCandles(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to fetch chart data', err);
+        if (!cancelled) {
+          setErrorMessage('차트를 불러오지 못했습니다.');
+          setCandles([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    fetchChart();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapPointLabel, period, productId]);
 
   const tooltipStyle = useMemo(() => {
     if (!hoveredPoint) return null;
@@ -331,12 +399,12 @@ export function TradingChart() {
           </div>
         </div>
 
-        {mounted ? (
-          <div
-            ref={chartScrollRef}
-            className="relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
-            style={scrollStyle}
-          >
+        <div
+          ref={chartScrollRef}
+          className="relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
+          style={scrollStyle}
+        >
+          {hasData ? (
             <div
               ref={chartAreaRef}
               className="relative h-full"
@@ -403,8 +471,19 @@ export function TradingChart() {
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
-                  </>
-                )}
+                    {visibleData.map((candle, index) => (
+                      <circle
+                        key={`point-${candle.t}-${index}`}
+                        cx={xScale(index)}
+                        cy={yScale(candle.c)}
+                        r={4}
+                        fill="#1A4DE5"
+                        stroke="#ffffff"
+                        strokeWidth={1}
+                      />
+                    ))}
+                 </>
+               )}
               </svg>
 
               {hoveredPoint && (
@@ -471,18 +550,16 @@ export function TradingChart() {
                 ))}
               </div>
             </div>
-          </div>
-        ) : (
-          <div
-            ref={chartScrollRef}
-            className="relative -mx-4 flex-1 select-none px-2 py-2 pb-6"
-            style={scrollStyle}
-          >
+          ) : (
             <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-              차트 준비 중...
+              {errorMessage
+                ? errorMessage
+                : isLoading
+                  ? '차트 데이터를 불러오는 중...'
+                  : '차트 준비 중...'}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );
