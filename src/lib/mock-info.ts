@@ -1,4 +1,4 @@
-export type RevenuePoint = { t: string; value: number };
+export type RevenuePoint = { t: string; value: number; date?: string };
 
 export type SecurityInfo = {
   id: string;

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Suspense } from "react"
 
 import { PageShell } from "./components/PageShell"
 
@@ -7,5 +8,9 @@ type PagesLayoutProps = {
 }
 
 export default function PagesLayout({ children }: PagesLayoutProps) {
-  return <PageShell>{children}</PageShell>
+  return (
+    <Suspense fallback={null}>
+      <PageShell>{children}</PageShell>
+    </Suspense>
+  )
 }

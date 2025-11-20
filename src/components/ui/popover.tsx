@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 type PopoverContextValue = {
   open: boolean
   setOpen: (open: boolean) => void
-  triggerRef: React.RefObject<HTMLElement>
+  triggerRef: React.RefObject<HTMLElement | null>
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -100,14 +100,15 @@ const PopoverTrigger = React.forwardRef<HTMLButtonElement, PopoverTriggerProps>(
     }
 
     if (asChild && React.isValidElement(children)) {
+      const childWithProps = children as React.ReactElement<any> & { ref?: React.Ref<any> }
       const composedOnClick = composeEventHandlers(
-        composeEventHandlers(children.props.onClick, onClick),
+        composeEventHandlers(childWithProps.props.onClick, onClick),
         () => setOpen(!open),
       )
-      return React.cloneElement(children, {
-        ref: mergeRefs(children.ref, (node: HTMLElement | null) => {
-          triggerRef.current = node || undefined
-        }) as React.Ref<any>,
+      return React.cloneElement(childWithProps, {
+        ref: mergeRefs(childWithProps.ref ?? null, (node: HTMLElement | null) => {
+          triggerRef.current = node
+        }),
         "aria-haspopup": "dialog",
         "aria-expanded": open,
         onClick: composedOnClick,
@@ -119,7 +120,7 @@ const PopoverTrigger = React.forwardRef<HTMLButtonElement, PopoverTriggerProps>(
       <button
         type="button"
         ref={(node) => {
-          triggerRef.current = node || undefined
+          triggerRef.current = node
           if (typeof ref === "function") {
             ref(node)
           } else if (ref) {
