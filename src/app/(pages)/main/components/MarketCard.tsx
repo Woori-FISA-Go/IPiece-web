@@ -78,6 +78,8 @@ export function MarketCard({ item }: MarketCardProps) {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageUrl = normalizeImageUrl(item.imageUrl)
   const router = useRouter()
+  const formattedPrice =
+    typeof item.priceKRW === "number" ? item.priceKRW.toLocaleString("ko-KR") : item.priceKRW
 
   useEffect(() => {
     return () => {
@@ -209,7 +211,10 @@ export function MarketCard({ item }: MarketCardProps) {
         </div>
         <div className="flex items-center gap-1">
           <Image src={iconCoin} alt="" width={16} height={16} />
-          <span className="text-sm font-semibold text-gray-900">{item.priceKRW}{'\uC6D0'}</span>
+          <span className="text-sm font-semibold text-gray-900">
+            {formattedPrice}
+            {'\uC6D0'}
+          </span>
         </div>
       </div>
       {toastMessage ? (
