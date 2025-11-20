@@ -2,8 +2,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# pnpm 사용
-RUN corepack enable
+# pnpm 버전 명시적으로 준비
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -15,7 +15,7 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 ENV NODE_ENV=production
 
 COPY --from=builder /app ./
