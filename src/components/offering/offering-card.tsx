@@ -9,20 +9,34 @@ import { Card } from "@/components/ui/card";
 
 interface OfferingCardProps {
   item: OfferingItem;
-  onLikeToggle: (id: string) => void;
+  onLikeToggle?: (id: string, nextLiked: boolean) => Promise<boolean>;
+  onNavigate?: (id: string) => void;
+  isNavigating?: boolean;
 }
 
-export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
-  const [liked, setLiked] = useState(item.liked || false);
+export function OfferingCard({ item, onLikeToggle, onNavigate, isNavigating }: OfferingCardProps) {
+  const [liked, setLiked] = useState(Boolean(item.liked));
+  const [isProcessingFavorite, setIsProcessingFavorite] = useState(false);
   const router = useRouter();
   const productId = item.id?.trim() || "dino-tang";
 
-  const handleLikeClick = () => {
-    setLiked(!liked);
-    onLikeToggle(item.id);
+  const handleLikeClick = async () => {
+    if (!onLikeToggle || isProcessingFavorite) return;
+    setIsProcessingFavorite(true);
+    const nextLiked = !liked;
+    const success = await onLikeToggle(item.id, nextLiked);
+    if (success) {
+      setLiked(nextLiked);
+    }
+    setIsProcessingFavorite(false);
   };
 
   const handleNavigate = () => {
+    if (isNavigating) return;
+    if (onNavigate) {
+      onNavigate(productId);
+      return;
+    }
     router.push(`/offering/${productId}`);
   };
 
@@ -34,13 +48,13 @@ export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
   };
 
   const renderStatusBadge = () => {
-    if (item.status === 'UPCOMING') {
+    if (item.status === "UPCOMING") {
       return (
         <div
           className="rounded-full px-2.5 py-0.5 text-xs font-medium"
           style={{
-            backgroundColor: 'rgba(184, 217, 255, 0.48)',
-            color: '#3386E5',
+            backgroundColor: "rgba(184, 217, 255, 0.48)",
+            color: "#3386E5",
           }}
         >
           시작 전
@@ -48,7 +62,7 @@ export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
       );
     }
 
-    if (item.status === 'ONGOING' && item.progressPct !== undefined) {
+    if (item.status === "ONGOING" && typeof item.progressPct === "number") {
       return (
         <div className="relative w-14 h-14">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
@@ -72,27 +86,26 @@ export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xs font-semibold text-[#525252]">
-              {item.progressPct}%
-            </span>
+            <span className="text-xs font-semibold text-[#525252]">{item.progressPct}%</span>
           </div>
         </div>
       );
     }
 
-    if (item.status === 'ENDED') {
+    if (item.status === "ENDED") {
       return (
         <div
           className="rounded-full px-2.5 py-0.5 text-xs font-medium"
           style={{
-            backgroundColor: 'rgba(41, 41, 58, 0.23)',
-            color: '#5A5A5A',
+            backgroundColor: "rgba(41, 41, 58, 0.23)",
+            color: "#5A5A5A",
           }}
         >
           종료
         </div>
       );
     }
+    return null;
   };
 
   return (
@@ -111,12 +124,12 @@ export function OfferingCard({ item, onLikeToggle }: OfferingCardProps) {
         onLikeToggle={handleLikeClick}
         status={item.status}
       />
-      <CardContent
-        title={item.title}
-        author={item.author}
-        price={item.priceKRW}
-        statusBadge={renderStatusBadge()}
-      />
+      {isNavigating ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-sm">
+          이동 중...
+        </div>
+      ) : null}
+      <CardContent title={item.title} author={item.author} price={item.priceKRW} statusBadge={renderStatusBadge()} />
     </Card>
   );
 }
