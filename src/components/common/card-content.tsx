@@ -34,9 +34,7 @@ export function CardContent({
           <div className="space-y-1.5">
             <div className="min-w-0">
               <h3 className="text-sm font-semibold truncate">{title}</h3>
-              <p className="text-xs text-muted-foreground truncate">
-                by {author}
-              </p>
+              <p className="text-xs text-muted-foreground truncate">by {author}</p>
             </div>
             <div className="flex items-center gap-1.5">
               <img
@@ -52,11 +50,7 @@ export function CardContent({
         </div>
 
         {(badgeContent || statusBadge) && (
-          <div
-            className={`flex shrink-0 items-center ${
-              isProgressBadge ? '' : 'self-start'
-            }`}
-          >
+          <div className={`flex shrink-0 items-center ${isProgressBadge ? '' : 'self-start'}`}>
             {badgeContent ? (
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
