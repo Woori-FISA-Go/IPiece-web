@@ -22,7 +22,7 @@ export function HeroBanner({ banners }: HeroBannerProps) {
   const currentBanner = banners[currentSlide] ?? { alt: "", imageUrl: "" }
 
   return (
-    <div className="relative w-full h-[360px] bg-gray-200 overflow-hidden">
+    <div className="relative w-full h-[552px] bg-gray-200 overflow-hidden">
       {currentBanner.imageUrl ? (
         <Image
           src={currentBanner.imageUrl || "/placeholder.svg"}
@@ -30,6 +30,7 @@ export function HeroBanner({ banners }: HeroBannerProps) {
           fill
           className="object-cover"
           priority
+          unoptimized
         />
       ) : (
         <div className="absolute inset-0" />
