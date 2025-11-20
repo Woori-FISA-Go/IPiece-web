@@ -1,9 +1,8 @@
 name: Frontend CI/CD (ECR, Next.js)
 
-# 1. 트리거 설정 수정: 테스트 브랜치 추가
 on:
   push:
-    branches: [ "feat/cicd-test" ] # 👈 여기에 테스트용 브랜치 이름 추가!
+    branches: [ "feat/cicd-test" ]
   workflow_dispatch:
 
 env:
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) 소스 코드 가져오기
+      # 1) 현재 레포 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -53,7 +52,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 8) 도커 빌드 & 푸시
+      # 8) Docker 빌드 & 푸시
       - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -64,7 +63,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # 9) GitOps: Manifest 업데이트 (URL 에러 수정 버전)
+      # 9) GitOps 자동 업데이트 (믿고 쓰는 Credential Helper 버전)
       - name: Update manifests repo with new frontend image tag
         env:
           GIT_TOKEN: ${{ secrets.MANIFESTS_REPO_TOKEN }}
@@ -72,8 +71,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
-          # 1. 토큰 공백/줄바꿈 문자 제거 (에러의 주범 해결)
-          # tr 명령어로 눈에 안 보이는 공백을 싹 지웁니다.
+          # 1. 토큰 공백 제거
           TRIMMED_TOKEN=$(echo "$GIT_TOKEN" | tr -d '\n' | tr -d '\r')
 
           if [ -z "$TRIMMED_TOKEN" ]; then
@@ -84,30 +82,29 @@ jobs:
           git config --global user.email "ci@ipiece.local"
           git config --global user.name "ipiece-ci"
 
-          # 2. 안전한 인증 설정 (URL 직접 삽입 대신 git config 사용)
-          # https://github.com 요청을 보낼 때 자동으로 토큰을 끼워넣도록 설정합니다.
-          # 이 방식은 특수문자나 URL 파싱 에러로부터 가장 안전합니다.
-          git config --global url."https://x-access-token:$TRIMMED_TOKEN@github.com/".insteadOf "https://github.com/"
+          # 2. GitHub 인증 설정 (Credential Helper 방식)
+          git config --global credential.helper store
+          echo "https://x-access-token:${TRIMMED_TOKEN}@github.com" > ~/.git-credentials
 
-          # 3. 클론 (이제 토큰 없이 주소만 써도 인증됨)
+          # 3. GitOps repo clone
           git clone https://github.com/Woori-FISA-Go/ipiece-manifests.git
 
-          # 4. 폴더 이동
           cd ipiece-manifests/frontend
 
           echo "Before change:"
           grep "image:" deployment.yaml || true
 
-          # 5. 이미지 태그 교체
+          # 4. 이미지 태그 자동 교체
           sed -i "s|image: .*/$ECR_REPOSITORY:.*|image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|" deployment.yaml
 
           echo "After change:"
           grep "image:" deployment.yaml || true
 
-          # 6. 변경사항 커밋 & 푸시
+          # 5. 변경사항 커밋 & 푸시
           if git diff --quiet; then
-            echo "No changes to commit."
+            echo "⭕ No changes to commit."
           else
-            git commit -am "chore: update frontend image to ${IMAGE_TAG}"
+            git add .
+            git commit -m "chore: update frontend image to ${IMAGE_TAG}"
             git push
           fi
