@@ -7,7 +7,11 @@ import Logo from "../assets/Logo.png"
 import { Button } from "../components/ui/button"
 import { ACCESS_TOKEN_KEY } from "@/lib/auth"
 
-export function Header() {
+type HeaderProps = {
+  containerClassName?: string
+}
+
+export function Header({ containerClassName }: HeaderProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const avatarSrc = 'https://i.pravatar.cc/28'
   const pathname = usePathname()
@@ -25,10 +29,12 @@ export function Header() {
     const hasAccessToken = !!localStorage.getItem(ACCESS_TOKEN_KEY)
     setIsLoggedIn(hasAccessToken)
   }, [])
+  const defaultSpacing = 'container mx-auto px-10 sm:px-16 lg:px-20 xl:px-24'
+  const resolvedContainer = `${containerClassName ?? defaultSpacing} h-16 flex items-center justify-between`
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50">
-      <div className="container mx-auto px-10 sm:px-16 lg:px-20 xl:px-24 h-16 flex items-center justify-between">
+    <header className="border-b bg-white">
+      <div className={resolvedContainer}>
         <div className="flex items-center gap-8">
           <Link href="/" className="cursor-pointer">
             <Image src={Logo} alt="iPiece" width={120} height={32} className="h-8 w-auto" />

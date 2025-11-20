@@ -13,14 +13,22 @@ import {
   useId,
 } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  MOCK_CANDLES_1D,
-  MOCK_CANDLES_1M,
-  MOCK_CANDLES_1W,
-  type Candle,
-} from '@/lib/mock-trading';
+import type { Candle } from '@/lib/mock-trading';
+import { apiFetch } from '@/lib/api-client';
 
 type Period = '1D' | '1W' | '1M';
+const PERIOD_OPTIONS: Period[] = ['1D', '1W', '1M'];
+type ChartInterval = '1d' | '1w' | '1m';
+
+type ChartApiResponse = {
+  product_id: number;
+  interval: ChartInterval;
+  window?: { start_at: string; end_at: string };
+  points?: Array<{ ts: string; price: number; volume?: number }>;
+  has_more?: boolean;
+  next_cursor?: string;
+  fetched_at?: string;
+};
 
 interface HoverPoint {
   candle: Candle;
@@ -28,8 +36,16 @@ interface HoverPoint {
   y: number;
 }
 
-export function TradingChart() {
-  const [period, setPeriod] = useState<Period>('1D');
+interface TradingChartProps {
+  productId?: number | string;
+}
+
+export function TradingChart({ productId }: TradingChartProps) {
+  const [isClient, setIsClient] = useState(false);
+  const [period, setPeriod] = useState<Period>('1W');
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
@@ -45,14 +61,7 @@ export function TradingChart() {
     accumulated: 0,
   });
 
-  const data =
-    period === '1D'
-      ? MOCK_CANDLES_1D
-      : period === '1W'
-        ? MOCK_CANDLES_1W
-        : MOCK_CANDLES_1M;
-
-  const visibleData = data;
+  const visibleData = candles;
 
   const height = 320;
   const padding = { top: 68, right: 28, bottom: 88, left: 40 };
@@ -71,9 +80,11 @@ export function TradingChart() {
   );
   const chartHeight = height - padding.top - padding.bottom;
   const chartBaseline = padding.top + chartHeight;
-  const [mounted, setMounted] = useState(false);
   const gradientId = useId();
-  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useLayoutEffect(() => {
     const element = chartScrollRef.current;
@@ -94,11 +105,12 @@ export function TradingChart() {
     const scroller = chartScrollRef.current;
     if (!scroller) return;
     scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
-  }, [period, data.length, baseCanvasWidth]);
+  }, [period, visibleData.length, baseCanvasWidth]);
 
-  const prices = visibleData.map((d) => d.c);
-  const minPrice = Math.min(...prices) * 0.98;
-  const maxPrice = Math.max(...prices) * 1.02;
+  const hasData = visibleData.length > 0;
+  const prices = hasData ? visibleData.map((d) => d.c) : [0];
+  const minPrice = hasData ? Math.min(...prices) * 0.98 : 0;
+  const maxPrice = hasData ? Math.max(...prices) * 1.02 : 0;
 
   const xScale = (index: number) => {
     if (visibleData.length <= 1) {
@@ -138,21 +150,88 @@ export function TradingChart() {
     };
   }, [chartBaseline, visibleData, xScale, yScale]);
 
-  const yTicks = useMemo(
-    () => [minPrice, (minPrice + maxPrice) / 2, maxPrice],
-    [maxPrice, minPrice],
-  );
+  const yTicks = useMemo(() => {
+    if (!hasData) return [0];
+    return [minPrice, (minPrice + maxPrice) / 2, maxPrice];
+  }, [hasData, minPrice, maxPrice]);
 
   const axisLabels = useMemo(() => {
     if (visibleData.length === 0) return [];
     const count = Math.min(5, visibleData.length);
-    if (count === 1) return [visibleData[0].t];
+    if (count === 1) {
+      return [{ label: visibleData[0].t, index: 0 }];
+    }
     const step = (visibleData.length - 1) / (count - 1);
     return Array.from({ length: count }, (_, i) => {
       const idx = Math.round(i * step);
-      return visibleData[idx]?.t ?? '';
+      return {
+        label: visibleData[idx]?.t ?? '',
+        index: idx,
+      };
     });
   }, [visibleData]);
+
+  const mapPointLabel = useCallback(
+    (timestamp: string) => {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return timestamp;
+      if (period === '1D') {
+        return `${date.getHours().toString().padStart(2, '0')}:${date
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`;
+      }
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    },
+    [period],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchChart = async () => {
+      if (!productId) {
+        setCandles([]);
+        return;
+      }
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        const intervalParam = period.toLowerCase() as ChartInterval;
+        const res = await apiFetch(
+          `/v1/market/${productId}/chart?interval=${intervalParam}`,
+        );
+        if (!res.ok) {
+          throw new Error(`Failed chart fetch: ${res.status}`);
+        }
+        const payload = (await res.json()) as ChartApiResponse;
+        const mapped = (payload.points ?? []).map((point) => ({
+          t: mapPointLabel(point.ts),
+          o: point.price,
+          h: point.price,
+          l: point.price,
+          c: point.price,
+          v: point.volume ?? 0,
+        }));
+        if (!cancelled) {
+          setCandles(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to fetch chart data', err);
+        if (!cancelled) {
+          setErrorMessage('차트를 불러오지 못했습니다.');
+          setCandles([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    fetchChart();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapPointLabel, period, productId]);
 
   const tooltipStyle = useMemo(() => {
     if (!hoveredPoint) return null;
@@ -315,7 +394,7 @@ export function TradingChart() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">차트</h2>
           <div className="flex gap-2">
-            {(['1D', '1W', '1M'] as Period[]).map((p) => (
+            {PERIOD_OPTIONS.map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
@@ -331,15 +410,15 @@ export function TradingChart() {
           </div>
         </div>
 
-        {mounted ? (
-          <div
-            ref={chartScrollRef}
-            className="relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
-            style={scrollStyle}
-          >
+        <div
+          ref={chartScrollRef}
+          className="relative -mx-4 flex flex-1 select-none items-center overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
+          style={scrollStyle}
+        >
+          {isClient ? (
             <div
               ref={chartAreaRef}
-              className="relative h-full"
+              className="relative"
               style={{ height, width: baseCanvasWidth }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -403,11 +482,22 @@ export function TradingChart() {
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
+                    {visibleData.map((candle, index) => (
+                      <circle
+                        key={`point-${candle.t}-${index}`}
+                        cx={xScale(index)}
+                        cy={yScale(candle.c)}
+                        r={4}
+                        fill="#1A4DE5"
+                        stroke="#ffffff"
+                        strokeWidth={1}
+                      />
+                    ))}
                   </>
                 )}
               </svg>
 
-              {hoveredPoint && (
+              {hoveredPoint && hasData && (
                 <>
                   <div
                     className="absolute"
@@ -460,29 +550,32 @@ export function TradingChart() {
                 </>
               )}
 
-              <div
-                className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500"
-                style={{ pointerEvents: 'none' }}
-              >
-                {axisLabels.map((label, index) => (
-                  <span key={`${label}-${index}`} className="truncate">
+              <div className="pointer-events-none absolute bottom-[18px] left-0 right-0 px-8 text-[10px] text-gray-500">
+                {axisLabels.map(({ label, index }) => (
+                  <span
+                    key={`${label}-${index}`}
+                    className="absolute -translate-x-1/2 whitespace-nowrap"
+                    style={{ left: `${xScale(index)}px` }}
+                  >
                     {label}
                   </span>
                 ))}
               </div>
+
+              {!hasData && (
+                <div className="absolute inset-0 flex items-center justify-center px-4">
+                  <span className="text-xs text-slate-400">
+                    데이터가 없습니다.
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-        ) : (
-          <div
-            ref={chartScrollRef}
-            className="relative -mx-4 flex-1 select-none px-2 py-2 pb-6"
-            style={scrollStyle}
-          >
-            <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
+          ) : (
+            <div className="flex h-[320px] w-full items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
               차트 준비 중...
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );

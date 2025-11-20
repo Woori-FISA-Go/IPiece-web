@@ -311,8 +311,8 @@ export default function TradingDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10">
-        <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-4">
+      <header className="bg-white border-b">
+        <div className="mx-auto w-full max-w-[1680px] px-6 lg:px-12 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
@@ -409,7 +409,7 @@ export default function TradingDetailPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[620px_320px_minmax(0,1fr)] lg:[--panel-height:640px] items-stretch">
             {/* Chart - Left Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[620px]">
-              <TradingChart />
+              <TradingChart productId={productInfo?.product_id ?? Number(id)} />
             </div>
 
             {/* Order Form - Middle Column */}

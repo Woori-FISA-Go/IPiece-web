@@ -76,57 +76,65 @@ export function NoticePanel({ notices }: NoticePanelProps = {}) {
           ref={containerRef}
           className="notice-scroll flex-1 min-h-0 overflow-y-auto pr-2 space-y-4"
         >
-          {groupedEntries.map(([year, notices]) => {
-            const items = notices.slice(
-              0,
-              Math.max(0, visibleCount - rendered),
-            );
-            rendered += items.length;
-            if (items.length === 0) return null;
+          {sourceNotices.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/50 text-sm text-gray-500">
+              데이터가 없습니다.
+            </div>
+          ) : (
+            <>
+              {groupedEntries.map(([year, notices]) => {
+                const items = notices.slice(
+                  0,
+                  Math.max(0, visibleCount - rendered),
+                );
+                rendered += items.length;
+                if (items.length === 0) return null;
 
-            return (
-              <div key={year}>
-                <h4 className="text-sm font-bold text-gray-900 mb-2">
-                  {year}년
-                </h4>
-                <div className="space-y-2">
-                  {items.map((notice) => (
-                    <Link
-                      key={notice.id}
-                      href={notice.url ?? '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex w-full items-start justify-between gap-4 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 group"
-                      onClick={() => handleNoticeClick(notice.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="text-xs text-gray-500 whitespace-nowrap pt-0.5 min-w-[60px]">
-                          {formatDate(notice.date)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm text-gray-900 mb-0.5 line-clamp-2">
-                            {notice.title}
-                          </div>
-                          {notice.subtitle && (
-                            <div className="text-xs text-gray-500">
-                              {notice.subtitle}
+                return (
+                  <div key={year}>
+                    <h4 className="text-sm font-bold text-gray-900 mb-2">
+                      {year}년
+                    </h4>
+                    <div className="space-y-2">
+                      {items.map((notice) => (
+                        <Link
+                          key={notice.id}
+                          href={notice.url ?? '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-start justify-between gap-4 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 group"
+                          onClick={() => handleNoticeClick(notice.id)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="text-xs text-gray-500 whitespace-nowrap pt-0.5 min-w-[60px]">
+                              {formatDate(notice.date)}
                             </div>
-                          )}
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5 group-hover:text-gray-600 transition-colors" />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm text-gray-900 mb-0.5 line-clamp-2">
+                                {notice.title}
+                              </div>
+                              {notice.subtitle && (
+                                <div className="text-xs text-gray-500">
+                                  {notice.subtitle}
+                                </div>
+                              )}
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5 group-hover:text-gray-600 transition-colors" />
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div
+                ref={loadingRef}
+                className="py-4 text-center text-xs text-gray-400"
+              >
+                {visibleCount >= sourceNotices.length ? '' : '불러오는 중...'}
               </div>
-            );
-          })}
-          <div
-            ref={loadingRef}
-            className="py-4 text-center text-xs text-gray-400"
-          >
-            {visibleCount >= sourceNotices.length ? '' : '불러오는 중...'}
-          </div>
+            </>
+          )}
         </div>
       </CardContent>
       <style jsx>{`

@@ -52,7 +52,7 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
 
   return (
     <Card
-      className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
+      className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
       onClick={handleCardNavigation}
       role="button"
       tabIndex={0}
@@ -87,7 +87,7 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
           </button>
         </div>
 
-        <div className="p-4">
+        <div className="p-3">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold mb-0.5 truncate">
