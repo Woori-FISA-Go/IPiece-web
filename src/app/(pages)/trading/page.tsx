@@ -125,34 +125,36 @@ export default function HomePage() {
   const totalItems = totalCount ?? items.length;
 
   return (
-    <main className="flex-1 p-6 md:p-8">
-      {/* <NavTabs /> */}
-      <div className="mb-6">
-        <span className="inline-flex items-center justify-center bg-gray-100 text-gray-900 font-medium px-3 py-1 rounded text-sm">
-          {totalItems}개
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {items.map((item) => (
-          <TradeCard
-            key={item.id}
-            item={item}
-            onLikeToggle={handleLikeToggle}
-          />
-        ))}
-      </div>
-
-      {hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-8">
-          {isLoading && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              <span>로딩 중...</span>
-            </div>
-          )}
+    <main className="flex-1 bg-white">
+      <div className="mx-auto w-full max-w-[1280px] px-6 py-6">
+        {/* <NavTabs /> */}
+        <div className="mb-6">
+          <span className="inline-flex items-center justify-center bg-gray-100 text-gray-900 font-medium px-3 py-1 rounded text-sm">
+            {totalItems}개
+          </span>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {items.map((item) => (
+            <TradeCard
+              key={item.id}
+              item={item}
+              onLikeToggle={handleLikeToggle}
+            />
+          ))}
+        </div>
+
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-8">
+            {isLoading && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                <span>로딩 중...</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </main>
   );
 }

@@ -311,8 +311,8 @@ export default function TradingDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10">
-        <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-8 lg:px-16 py-4">
+      <header className="bg-white border-b">
+        <div className="mx-auto w-full max-w-[1680px] px-6 lg:px-12 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">

@@ -41,6 +41,7 @@ interface TradingChartProps {
 }
 
 export function TradingChart({ productId }: TradingChartProps) {
+  const [isClient, setIsClient] = useState(false);
   const [period, setPeriod] = useState<Period>('1W');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,6 +81,10 @@ export function TradingChart({ productId }: TradingChartProps) {
   const chartHeight = height - padding.top - padding.bottom;
   const chartBaseline = padding.top + chartHeight;
   const gradientId = useId();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useLayoutEffect(() => {
     const element = chartScrollRef.current;
@@ -153,11 +158,16 @@ export function TradingChart({ productId }: TradingChartProps) {
   const axisLabels = useMemo(() => {
     if (visibleData.length === 0) return [];
     const count = Math.min(5, visibleData.length);
-    if (count === 1) return [visibleData[0].t];
+    if (count === 1) {
+      return [{ label: visibleData[0].t, index: 0 }];
+    }
     const step = (visibleData.length - 1) / (count - 1);
     return Array.from({ length: count }, (_, i) => {
       const idx = Math.round(i * step);
-      return visibleData[idx]?.t ?? '';
+      return {
+        label: visibleData[idx]?.t ?? '',
+        index: idx,
+      };
     });
   }, [visibleData]);
 
@@ -402,13 +412,13 @@ export function TradingChart({ productId }: TradingChartProps) {
 
         <div
           ref={chartScrollRef}
-          className="relative -mx-4 flex-1 select-none overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
+          className="relative -mx-4 flex flex-1 select-none items-center overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
           style={scrollStyle}
         >
-          {hasData ? (
+          {isClient ? (
             <div
               ref={chartAreaRef}
-              className="relative h-full"
+              className="relative"
               style={{ height, width: baseCanvasWidth }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -483,11 +493,11 @@ export function TradingChart({ productId }: TradingChartProps) {
                         strokeWidth={1}
                       />
                     ))}
-                 </>
-               )}
+                  </>
+                )}
               </svg>
 
-              {hoveredPoint && (
+              {hoveredPoint && hasData && (
                 <>
                   <div
                     className="absolute"
@@ -540,24 +550,29 @@ export function TradingChart({ productId }: TradingChartProps) {
                 </>
               )}
 
-              <div
-                className="absolute bottom-[18px] left-0 right-0 flex justify-between px-8 text-[10px] text-gray-500"
-                style={{ pointerEvents: 'none' }}
-              >
-                {axisLabels.map((label, index) => (
-                  <span key={`${label}-${index}`} className="truncate">
+              <div className="pointer-events-none absolute bottom-[18px] left-0 right-0 px-8 text-[10px] text-gray-500">
+                {axisLabels.map(({ label, index }) => (
+                  <span
+                    key={`${label}-${index}`}
+                    className="absolute -translate-x-1/2 whitespace-nowrap"
+                    style={{ left: `${xScale(index)}px` }}
+                  >
                     {label}
                   </span>
                 ))}
               </div>
+
+              {!hasData && (
+                <div className="absolute inset-0 flex items-center justify-center px-4">
+                  <span className="text-xs text-slate-400">
+                    데이터가 없습니다.
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-              {errorMessage
-                ? errorMessage
-                : isLoading
-                  ? '차트 데이터를 불러오는 중...'
-                  : '차트 준비 중...'}
+            <div className="flex h-[320px] w-full items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
+              차트 준비 중...
             </div>
           )}
         </div>

@@ -62,7 +62,7 @@ export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBoo
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-2">
             {!hasData && (
               <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                호가 데이터를 불러오는 중...
+                데이터가 없습니다.
               </div>
             )}
             {sortedSells.map((row) => (
