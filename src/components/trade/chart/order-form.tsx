@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import myHomeEmptyIcon from '@/assets/images/my_home_empty_state_icon.svg';
@@ -48,19 +49,36 @@ type PendingOrder = {
 
 type PendingOrderResponse = {
   page?: number;
-  content?: Array<{
-    order_id: string;
-    side: 'buy' | 'sell';
-    order_price: number;
-    order_quantity: number;
-    created_at: string;
-  }>;
+  total?: number;
+  has_next?: boolean;
+  content?: PendingOrderPayload[];
+  orders?: PendingOrderPayload[];
+  items?: PendingOrderPayload[];
+};
+
+type PendingOrderPayload = {
+  order_id: string;
+  product_id: number;
+  product_name?: string;
+  order_type?: 'BUY' | 'SELL' | 'buy' | 'sell';
+  side?: 'buy' | 'sell';
+  price: number;
+  quantity: number;
+  filled_quantity?: number;
+  remaining_quantity?: number;
+  amount?: number;
+  order_price?: number;
+  order_quantity?: number;
+  created_at?: string;
+  placed_at?: string;
 };
 
 export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
   const [price, setPrice] = useState(currentPrice);
+  const [priceInput, setPriceInput] = useState(() => String(currentPrice ?? 0));
   const [quantity, setQuantity] = useState(1);
+  const [quantityInput, setQuantityInput] = useState('1');
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,29 +88,66 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
     setHasHydrated(true);
   }, []);
 
+  const handlePriceChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (!/^\d*$/.test(value)) return;
+    setPriceInput(value);
+    setPrice(value === '' ? 0 : Number(value));
+  };
+
+  const handlePriceBlur = () => {
+    const normalized = priceInput === '' ? 0 : Number(priceInput);
+    setPrice(normalized);
+    setPriceInput(String(normalized));
+  };
+
+  const handleQuantityChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (!/^\d*$/.test(value)) return;
+    setQuantityInput(value);
+    setQuantity(value === '' ? 0 : Number(value));
+  };
+
+  const handleQuantityBlur = () => {
+    const normalized = Math.max(1, Number(quantityInput) || 1);
+    setQuantity(normalized);
+    setQuantityInput(String(normalized));
+  };
+
+  useEffect(() => {
+    setPrice(currentPrice);
+    setPriceInput(String(currentPrice ?? 0));
+  }, [currentPrice]);
+
   useEffect(() => {
     const fetchPendingOrders = async () => {
       const numericProductId = Number(productId);
       if (!Number.isFinite(numericProductId)) return;
 
       try {
-        const res = await apiFetch(`/v1/market/${numericProductId}/orderbook/status=pending`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ page: 1 }),
-        });
+        const res = await apiFetch(
+          `/v1/market/${numericProductId}/orders/pending?page=1`,
+        );
         if (!res.ok) {
           console.warn(`Failed to load pending orders: ${res.status}`);
           return;
         }
         const data = (await res.json()) as PendingOrderResponse;
-        const normalized = data.content?.map((order) => ({
-          id: order.order_id,
-          side: order.side,
-          price: order.order_price,
-          quantity: order.order_quantity,
-          createdAt: Date.parse(order.created_at) || Date.now(),
-        })) ?? [];
+        const entries = data.items ?? data.content ?? data.orders ?? [];
+        const normalized = entries.map((order) => {
+          const price = order.price ?? order.order_price ?? 0;
+          const quantity = order.quantity ?? order.order_quantity ?? 0;
+          const timestamp = order.placed_at ?? order.created_at ?? '';
+          const sideValue =
+            order.side?.toLowerCase() ?? order.order_type?.toLowerCase() ?? 'buy';
+          return {
+            id: order.order_id,
+            side: sideValue === 'sell' ? 'sell' : 'buy',
+            price,
+            quantity,
+            createdAt: timestamp ? Date.parse(timestamp) || Date.now() : Date.now(),
+          } satisfies PendingOrder;
+        });
         setPendingOrders(normalized);
       } catch (error) {
         console.error('Failed to fetch pending orders', error);
@@ -111,9 +166,16 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
       return;
     }
 
+    const normalizedPrice = priceInput === '' ? 0 : Number(priceInput);
+    const normalizedQuantity = Math.max(1, quantityInput === '' ? 0 : Number(quantityInput));
+    setPrice(normalizedPrice);
+    setPriceInput(String(normalizedPrice));
+    setQuantity(normalizedQuantity);
+    setQuantityInput(String(normalizedQuantity));
+
     const payload = {
-      order_price: price,
-      order_quantity: quantity,
+      order_price: normalizedPrice,
+      order_quantity: normalizedQuantity,
       client_time: new Date().toISOString(),
     };
 
@@ -155,8 +217,8 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
       const newOrder: PendingOrder = {
         id: data.order_id ?? `${Date.now()}`,
         side: (data.side as PendingOrder['side']) ?? activeTab,
-        price: data.order_price ?? price,
-        quantity: data.order_quantity ?? quantity,
+        price: data.order_price ?? normalizedPrice,
+        quantity: data.order_quantity ?? normalizedQuantity,
         createdAt: Number.isNaN(createdAtTs) ? Date.now() : createdAtTs,
       };
 
@@ -171,10 +233,34 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
     }
   };
 
-  const incrementPrice = () => setPrice((p) => p + 100);
-  const decrementPrice = () => setPrice((p) => Math.max(100, p - 100));
-  const incrementQuantity = () => setQuantity((q) => q + 1);
-  const decrementQuantity = () => setQuantity((q) => Math.max(1, q - 1));
+  const incrementPrice = () =>
+    setPrice((prev) => {
+      const current = Number.isFinite(prev) ? prev : 0;
+      const next = current + 100;
+      setPriceInput(String(next));
+      return next;
+    });
+  const decrementPrice = () =>
+    setPrice((prev) => {
+      const current = Number.isFinite(prev) ? prev : 0;
+      const next = Math.max(0, current - 100);
+      setPriceInput(String(next));
+      return next;
+    });
+  const incrementQuantity = () =>
+    setQuantity((prev) => {
+      const base = prev && prev > 0 ? prev : 0;
+      const next = base + 1;
+      setQuantityInput(String(next));
+      return next;
+    });
+  const decrementQuantity = () =>
+    setQuantity((prev) => {
+      const base = prev && prev > 0 ? prev : 1;
+      const next = Math.max(1, base - 1);
+      setQuantityInput(String(next));
+      return next;
+    });
 
   const formatCurrency = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
@@ -345,8 +431,9 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
+                    value={priceInput}
+                    onChange={handlePriceChange}
+                    onBlur={handlePriceBlur}
                     className="w-[132px] rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                   />
                   <span className="text-sm text-[#6B7280]">원</span>
@@ -369,16 +456,15 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={quantity}
-                    onChange={(e) =>
-                      setQuantity(Math.max(1, Number(e.target.value)))
-                    }
+                    value={quantityInput}
+                    onChange={handleQuantityChange}
+                    onBlur={handleQuantityBlur}
                     placeholder={
-                      activeTab === 'sell' ? '최대 15주 가능' : '최대 5주 가능'
+                      activeTab === 'sell' ? '최대 15토큰 가능' : '최대 5토큰 가능'
                     }
-                    className="w-[132px] rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                    className="w-[120px] rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                   />
-                  <span className="text-sm text-[#6B7280]">주</span>
+                  <span className="text-sm text-[#6B7280] whitespace-nowrap">토큰</span>
                   <button
                     onClick={decrementQuantity}
                     className="flex h-9 w-9 items-center justify-center rounded-lg border bg-white text-lg text-[#6B7280] hover:bg-gray-50"
@@ -462,7 +548,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                         <div className="flex justify-between">
                           <span>수량</span>
                           <span className="text-sm font-medium text-[#111827]">
-                            {order.quantity.toLocaleString('ko-KR')}주
+                            {order.quantity.toLocaleString('ko-KR')}토큰
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -553,11 +639,11 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
                   <dt className="text-xs text-[#6B7280]">수량</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {assetSummary.quantity.toLocaleString('ko-KR')}주
+                    {assetSummary.quantity.toLocaleString('ko-KR')}토큰
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
-                  <dt className="text-xs text-[#6B7280]">1주 평균 금액</dt>
+                  <dt className="text-xs text-[#6B7280]">1토큰 평균 금액</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
                     {formatCurrency(assetSummary.avgBuyPrice)}
                   </dd>

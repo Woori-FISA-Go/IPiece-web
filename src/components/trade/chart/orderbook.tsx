@@ -26,8 +26,10 @@ export interface OrderBookProps {
 }
 
 export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBookProps) {
-  const totalSell = ordersSell.reduce((acc, row) => acc + row.quantity, 0);
-  const totalBuy = ordersBuy.reduce((acc, row) => acc + row.quantity, 0);
+  const sortedSells = [...ordersSell].sort((a, b) => b.price - a.price);
+  const sortedBuys = [...ordersBuy].sort((a, b) => a.price - b.price);
+  const totalSell = sortedSells.reduce((acc, row) => acc + row.quantity, 0);
+  const totalBuy = sortedBuys.reduce((acc, row) => acc + row.quantity, 0);
   const formatNumber = (value: number) => value.toLocaleString('ko-KR');
   const formatChange = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   const hasData = ordersSell.length > 0 || ordersBuy.length > 0;
@@ -63,7 +65,7 @@ export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBoo
                 호가 데이터를 불러오는 중...
               </div>
             )}
-            {ordersSell.map((row) => (
+            {sortedSells.map((row) => (
               <div
                 key={`ask-${row.price}`}
                 className="grid grid-cols-3 items-center rounded-lg px-3 py-4 text-sm transition-colors hover:bg-[#F2F4F7] text-center"
@@ -87,7 +89,7 @@ export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBoo
 
             <div className="my-1 h-px rounded-full bg-slate-200" />
 
-            {ordersBuy.map((row) => (
+            {sortedBuys.map((row) => (
               <div
                 key={`bid-${row.price}`}
                 className="grid grid-cols-3 items-center rounded-lg px-3 py-4 text-sm transition-colors hover:bg-[#F2F4F7] text-center"

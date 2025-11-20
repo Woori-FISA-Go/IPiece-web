@@ -17,6 +17,7 @@ import type { Candle } from '@/lib/mock-trading';
 import { apiFetch } from '@/lib/api-client';
 
 type Period = '1D' | '1W' | '1M';
+const PERIOD_OPTIONS: Period[] = ['1D', '1W', '1M'];
 type ChartInterval = '1d' | '1w' | '1m';
 
 type ChartApiResponse = {
@@ -383,7 +384,7 @@ export function TradingChart({ productId }: TradingChartProps) {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">차트</h2>
           <div className="flex gap-2">
-            {(['1D', '1W', '1M'] as Period[]).map((p) => (
+            {PERIOD_OPTIONS.map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
