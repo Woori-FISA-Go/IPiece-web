@@ -18,8 +18,21 @@ interface TradeCardProps {
 export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
   const router = useRouter();
 
-  const isPositive = item.changePct >= 0;
-  const changeText = isPositive ? `+${item.changePct}%` : `${item.changePct}%`;
+  const changePct = Number(item.changePct);
+  const formattedChange = changePct.toFixed(1);
+  const isZero = changePct === 0;
+  const isPositive = changePct > 0;
+  const changeText = isZero
+    ? '0.0%'
+    : isPositive
+      ? `+${formattedChange}%`
+      : `${formattedChange}%`;
+
+  const badgeClass = isZero
+    ? 'bg-gray-100 text-gray-600'
+    : isPositive
+      ? 'bg-[#FFB8B8]/48 text-[#E53333]'
+      : 'bg-[#B8D9FF]/48 text-[#3386E5]';
 
   const handleCardNavigation = () => {
     router.push(`/trading/${item.id}`);
@@ -86,11 +99,7 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
             </div>
 
             <span
-              className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
-                isPositive
-                  ? 'bg-[#FFB8B8]/48 text-[#E53333]'
-                  : 'bg-[#B8D9FF]/48 text-[#3386E5]'
-              }`}
+              className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${badgeClass}`}
             >
               {changeText}
             </span>

@@ -2,15 +2,7 @@
 
 import type React from 'react';
 
-import {
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useId,
-} from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, useLayoutEffect, useId } from 'react';
 import type { RevenuePoint } from '@/lib/mock-info';
 
 interface RevenueChartProps {
@@ -26,17 +18,6 @@ export function RevenueChart({ data }: RevenueChartProps) {
     dateLabel: string;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{
-    active: boolean;
-    pointerId: number | null;
-    lastX: number;
-    accumulated: number;
-  }>({
-    active: false,
-    pointerId: null,
-    lastX: 0,
-    accumulated: 0,
-  });
   const [containerWidth, setContainerWidth] = useState(0);
   const [mounted, setMounted] = useState(false);
 
@@ -77,18 +58,6 @@ export function RevenueChart({ data }: RevenueChartProps) {
   const slicedData = data.slice(rangeStart, rangeEnd);
   const visibleData = slicedData.length > 0 ? slicedData : data;
 
-  const shiftWindow = useCallback(
-    (steps: number) => {
-      if (steps === 0 || data.length <= windowSize) return;
-      setRangeStart((prev) => {
-        const maxStart = Math.max(0, data.length - windowSize);
-        const next = Math.min(Math.max(prev - steps, 0), maxStart);
-        return next;
-      });
-    },
-    [data.length, windowSize],
-  );
-
   const width = containerWidth > 0 ? containerWidth : 1000;
   const height = 250;
   const padding = { top: 20, right: 28, bottom: 40, left: 24 };
@@ -98,16 +67,9 @@ export function RevenueChart({ data }: RevenueChartProps) {
   const gradientId = useId();
 
   const activeData = visibleData.length > 0 ? visibleData : data;
+  const hasData = activeData.length > 0;
 
-  if (activeData.length === 0) {
-    return (
-      <div className="flex h-[250px] w-full items-center justify-center rounded-lg bg-gradient-to-b from-blue-50/30 to-white text-xs text-gray-400">
-        ?쒖떆???곗씠?곌? ?놁뒿?덈떎.
-      </div>
-    );
-  }
-
-  const values = activeData.map((d) => d.value);
+  const values = hasData ? activeData.map((d) => d.value) : [0];
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   const valueRange = Math.max(rawMax - rawMin, 1);
@@ -146,31 +108,32 @@ export function RevenueChart({ data }: RevenueChartProps) {
     [chartHeight, maxValue, minValue, padding.top],
   );
 
-  const { areaPath, linePath } = useMemo(() => {
+  const { areaPath, linePath, points } = useMemo(() => {
     if (!activeData.length) {
-      return { areaPath: '', linePath: '' };
+      return { areaPath: '', linePath: '', points: [] as { x: number; y: number }[] };
     }
-    const points = activeData.map((point, index) => ({
+    const pts = activeData.map((point, index) => ({
       x: xScale(index),
       y: yScaleValue(point.value),
     }));
-    const first = points[0];
-    const last = points[points.length - 1];
+    const first = pts[0];
+    const last = pts[pts.length - 1];
     const areaCommands = [
       'M ' + first.x + ' ' + chartBaseline,
       'L ' + first.x + ' ' + first.y,
-      ...points.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
+      ...pts.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
       'L ' + last.x + ' ' + chartBaseline,
       'L ' + first.x + ' ' + chartBaseline,
       'Z',
     ];
     const lineCommands = [
       'M ' + first.x + ' ' + first.y,
-      ...points.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
+      ...pts.slice(1).map((point) => 'L ' + point.x + ' ' + point.y),
     ];
     return {
       areaPath: areaCommands.join(' '),
       linePath: lineCommands.join(' '),
+      points: pts,
     };
   }, [activeData, chartBaseline, xScale, yScaleValue]);
 
@@ -195,134 +158,6 @@ export function RevenueChart({ data }: RevenueChartProps) {
     } as React.CSSProperties;
   }, [tooltip, width, padding.left, padding.right, padding.top]);
 
-  const updateHover = useCallback(
-    (clientX: number, clientY: number) => {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect || chartWidth <= 0 || chartHeight <= 0) {
-        setTooltip(null);
-        return;
-      }
-
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
-      const relativeX = localX - padding.left;
-      const relativeY = localY - padding.top;
-
-      if (
-        relativeX < 0 ||
-        relativeX > chartWidth ||
-        relativeY < 0 ||
-        relativeY > chartHeight
-      ) {
-        setTooltip(null);
-        return;
-      }
-
-      const denominator = Math.max(activeData.length - 1, 1);
-      const index = Math.min(
-        activeData.length - 1,
-        Math.max(0, Math.round((relativeX / chartWidth) * denominator)),
-      );
-      const point = activeData[index];
-      if (!point) {
-        setTooltip(null);
-        return;
-      }
-
-      const xPos = xScale(index);
-      const yPos = yScaleValue(point.value);
-
-      const globalIndex = rangeStart + index;
-      const anchorDate = new Date();
-      anchorDate.setHours(0, 0, 0, 0);
-      anchorDate.setDate(1);
-      const offset = data.length - 1 - globalIndex;
-      const date = new Date(anchorDate);
-      date.setMonth(anchorDate.getMonth() - offset);
-      const monthNumber = date.getMonth() + 1;
-      const dateLabel =
-        date.getFullYear() +
-        '년 ' +
-        monthNumber +
-        '월 ' +
-        date.getDate() +
-        '일';
-
-      setTooltip({
-        x: xPos,
-        y: yPos,
-        value: point.value,
-        label: point.t,
-        dateLabel,
-      });
-    },
-    [activeData, chartWidth, data.length, padding.left, padding.top, rangeStart, xScale, yScaleValue],
-  );
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      dragRef.current = {
-        active: true,
-        pointerId: e.pointerId,
-        lastX: e.clientX,
-        accumulated: 0,
-      };
-      e.currentTarget.setPointerCapture(e.pointerId);
-      updateHover(e.clientX, e.clientY);
-    },
-    [updateHover],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (drag.active) {
-        const movement = e.clientX - drag.lastX;
-        drag.lastX = e.clientX;
-        drag.accumulated += movement;
-
-        const threshold = 56;
-        const steps = Math.trunc(drag.accumulated / threshold);
-
-        if (steps !== 0) {
-          shiftWindow(steps);
-          drag.accumulated -= steps * threshold;
-        }
-      }
-
-      updateHover(e.clientX, e.clientY);
-    },
-    [shiftWindow, updateHover],
-  );
-
-  const endDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.active && dragRef.current.pointerId !== null) {
-      e.currentTarget.releasePointerCapture(dragRef.current.pointerId);
-    }
-    dragRef.current = {
-      active: false,
-      pointerId: null,
-      lastX: 0,
-      accumulated: 0,
-    };
-  }, []);
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      endDrag(e);
-      updateHover(e.clientX, e.clientY);
-    },
-    [endDrag, updateHover],
-  );
-
-  const handlePointerLeave = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      endDrag(e);
-      setTooltip(null);
-    },
-    [endDrag],
-  );
-
   if (!mounted) {
     return (
       <div
@@ -338,11 +173,6 @@ export function RevenueChart({ data }: RevenueChartProps) {
     <div
       ref={containerRef}
       className="relative h-[250px] w-full rounded-lg bg-gradient-to-b from-blue-50/30 to-white"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerLeave}
-      onPointerCancel={handlePointerLeave}
     >
       <div className="absolute inset-0">
                 <svg width={width} height={height} role="img" aria-label="?? ?? ??">
@@ -383,7 +213,39 @@ export function RevenueChart({ data }: RevenueChartProps) {
               />
             </>
           )}
+
+          {points.map((point, idx) => (
+            <circle
+              key={'pt-' + idx}
+              cx={point.x}
+              cy={point.y}
+              r={5}
+              fill="#3b82f6"
+              stroke="#fff"
+              strokeWidth={1.5}
+              onMouseEnter={() => {
+                const dataPoint = activeData[idx];
+                const dateRaw = dataPoint?.date;
+                const formattedDate = dateRaw
+                  ? new Date(dateRaw).toLocaleDateString('ko-KR')
+                  : dataPoint?.t ?? '';
+                setTooltip({
+                  x: point.x,
+                  y: point.y,
+                  value: dataPoint?.value ?? 0,
+                  label: dataPoint?.t ?? '',
+                  dateLabel: formattedDate,
+                });
+              }}
+              onMouseLeave={() => setTooltip(null)}
+            />
+          ))}
         </svg>
+        {!hasData && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 bg-white/70 backdrop-blur-sm">
+            데이터가 없습니다.
+          </div>
+        )}
       </div>
 
       {tooltip && (
@@ -431,7 +293,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
             >
               <div className="text-[11px] font-medium text-white/80">{tooltip.dateLabel}</div>
               <div className="mt-1 text-sm font-semibold">
-                {Math.round(tooltip.value).toLocaleString('ko-KR')}??
+                {Math.round(tooltip.value).toLocaleString('ko-KR')}원
               </div>
             </div>
           )}

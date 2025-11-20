@@ -4,20 +4,38 @@ import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
-import emptyIcon from '@/assets/empty_icon.svg';
+import myHomeEmptyIcon from '@/assets/images/my_home_empty_state_icon.svg';
+import { apiFetch } from '@/lib/api-client';
 
 type OrderTab = 'buy' | 'sell' | 'pending';
 
 interface OrderFormProps {
   currentPrice: number;
+  assetSummary: AssetSummary | null;
+  productId?: number | string;
 }
 
-type OrderSummary = {
-  totalProfit: number;
-  profitRate: number;
-  totalAmount: number;
+export type AssetSummary = {
+  productName: string;
   quantity: number;
-  averagePrice: number;
+  avgBuyPrice: number;
+  totalAmount: number;
+  totalProfitAmount: number;
+  totalProfitRate: number;
+};
+
+type BuyOrderResponse = {
+  status_code?: number;
+  order_id?: string;
+  product_id?: number;
+  side?: string;
+  order_price?: number;
+  order_quantity?: number;
+  total_amount?: number;
+  filled_quantity?: number;
+  remaining_quantity?: number;
+  created_at?: string;
+  idempotency_key?: string;
 };
 
 type PendingOrder = {
@@ -28,40 +46,129 @@ type PendingOrder = {
   createdAt: number;
 };
 
-export function OrderForm({ currentPrice }: OrderFormProps) {
+type PendingOrderResponse = {
+  page?: number;
+  content?: Array<{
+    order_id: string;
+    side: 'buy' | 'sell';
+    order_price: number;
+    order_quantity: number;
+    created_at: string;
+  }>;
+};
+
+export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
-  const [orderType] = useState('limit');
   const [price, setPrice] = useState(currentPrice);
   const [quantity, setQuantity] = useState(1);
-  const [myOrder] = useState<OrderSummary | null>({
-    totalProfit: 658_000,
-    profitRate: 0.719,
-    totalAmount: 1_572_000,
-    quantity: 15,
-    averagePrice: 60_933,
-  });
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [hasHydrated, setHasHydrated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    if (activeTab === 'pending') return;
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
-    const newOrder: PendingOrder = {
-      id: `${Date.now()}`,
-      side: activeTab,
-      price,
-      quantity,
-      createdAt: Date.now(),
+  useEffect(() => {
+    const fetchPendingOrders = async () => {
+      const numericProductId = Number(productId);
+      if (!Number.isFinite(numericProductId)) return;
+
+      try {
+        const res = await apiFetch(`/v1/market/${numericProductId}/orderbook/status=pending`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1 }),
+        });
+        if (!res.ok) {
+          console.warn(`Failed to load pending orders: ${res.status}`);
+          return;
+        }
+        const data = (await res.json()) as PendingOrderResponse;
+        const normalized = data.content?.map((order) => ({
+          id: order.order_id,
+          side: order.side,
+          price: order.order_price,
+          quantity: order.order_quantity,
+          createdAt: Date.parse(order.created_at) || Date.now(),
+        })) ?? [];
+        setPendingOrders(normalized);
+      } catch (error) {
+        console.error('Failed to fetch pending orders', error);
+      }
     };
 
-    setPendingOrders((prev) => [newOrder, ...prev]);
-    console.log('[v0] Order queued:', {
-      ...newOrder,
-      orderType,
-      total: newOrder.price * newOrder.quantity,
-    });
+    fetchPendingOrders();
+  }, [productId]);
 
-    setPrevTab(activeTab);
-    setActiveTab('pending');
+  const handleSubmit = async () => {
+    if (activeTab === 'pending' || isSubmitting) return;
+
+    const numericProductId = Number(productId);
+    if (!Number.isFinite(numericProductId)) {
+      setSubmitError('상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    const payload = {
+      order_price: price,
+      order_quantity: quantity,
+      client_time: new Date().toISOString(),
+    };
+
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const endpoint = activeTab === 'sell' ? 'sell' : 'buy';
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await apiFetch(`/v1/market/${numericProductId}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const actionLabel = activeTab === 'sell' ? '판매' : '구매';
+        let errMsg = `${actionLabel} 주문에 실패했습니다. (코드 ${res.status})`;
+        try {
+          const errorBody = (await res.json()) as { detail?: string };
+          if (errorBody?.detail) errMsg = errorBody.detail;
+        } catch {
+          // ignore
+        }
+        setSubmitError(errMsg);
+        return;
+      }
+
+      const data = (await res.json()) as BuyOrderResponse;
+      const createdAtTs = data.created_at ? Date.parse(data.created_at) : Date.now();
+      const newOrder: PendingOrder = {
+        id: data.order_id ?? `${Date.now()}`,
+        side: (data.side as PendingOrder['side']) ?? activeTab,
+        price: data.order_price ?? price,
+        quantity: data.order_quantity ?? quantity,
+        createdAt: Number.isNaN(createdAtTs) ? Date.now() : createdAtTs,
+      };
+
+      setPendingOrders((prev) => [newOrder, ...prev]);
+      setPrevTab(activeTab);
+      setActiveTab('pending');
+    } catch (error) {
+      console.error('Order failed', error);
+      setSubmitError('주문 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const incrementPrice = () => setPrice((p) => p + 100);
@@ -69,10 +176,15 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
   const incrementQuantity = () => setQuantity((q) => q + 1);
   const decrementQuantity = () => setQuantity((q) => Math.max(1, q - 1));
 
-  const formatCurrency = (value: number) =>
-    `${value.toLocaleString('ko-KR')}원`;
+  const formatCurrency = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
-  const formatRate = (value: number) => `${(value * 100).toFixed(1)}%`;
+  const formatProfitAmount = (value: number) => {
+    if (value === 0) return formatCurrency(0);
+    const sign = value > 0 ? '+' : '−';
+    return `${sign}${formatCurrency(Math.abs(value))}`;
+  };
+
+  const formatRate = (value: number) => `${value.toFixed(1)}%`;
   const formatTimestamp = (value: number) =>
     new Date(value).toLocaleString('ko-KR', {
       month: '2-digit',
@@ -290,14 +402,18 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
               <div className="mt-auto pt-4 pb-1">
                 <button
                   onClick={handleSubmit}
-                  className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors"
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: tabStyles.accent,
                     boxShadow: `0 8px 16px -12px ${tabStyles.accent}`,
                   }}
                 >
-                  {tabStyles.buttonLabel}
+                  {isSubmitting ? '주문 중...' : tabStyles.buttonLabel}
                 </button>
+                {submitError ? (
+                  <p className="mt-2 text-xs text-red-500">{submitError}</p>
+                ) : null}
               </div>
             </div>
           )}
@@ -399,18 +515,7 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
       {/* My Orders Card */}
       <Card className="flex flex-1 flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
         <CardContent className="flex flex-col p-6 pb-4 pt-4">
-          {!myOrder ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-sm text-gray-500">
-              <Image
-                src={emptyIcon}
-                alt="주문 없음"
-                width={88}
-                height={88}
-                priority
-              />
-              <p>아직 등록된 주문이 없어요.</p>
-            </div>
-          ) : (
+          {assetSummary ? (
             <div className="flex flex-col text-sm text-[#4B5563]">
               <div className="flex items-start justify-between pt-2">
                 <h3 className="text-base font-semibold text-[#111827]">
@@ -426,30 +531,54 @@ export function OrderForm({ currentPrice }: OrderFormProps) {
                   <dt className="text-sm font-medium text-[#111827]">
                     총 수익
                   </dt>
-                  <dd className="text-right text-base font-semibold text-[#E53333]">
-                    +{formatCurrency(myOrder.totalProfit)} (
-                    {formatRate(myOrder.profitRate)})
+                  <dd
+                    className={`text-right text-base font-semibold ${
+                      assetSummary.totalProfitAmount > 0
+                        ? 'text-[#E53333]'
+                        : assetSummary.totalProfitAmount < 0
+                          ? 'text-[#1D4ED8]'
+                          : 'text-[#6B7280]'
+                    }`}
+                  >
+                    {formatProfitAmount(assetSummary.totalProfitAmount)} (
+                    {formatRate(Number(assetSummary.totalProfitRate ?? 0))})
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6 pt-[10px]">
                   <dt className="text-xs text-[#6B7280]">총 금액</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {formatCurrency(myOrder.totalAmount)}
+                    {formatCurrency(assetSummary.totalAmount)}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
                   <dt className="text-xs text-[#6B7280]">수량</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {myOrder.quantity.toLocaleString('ko-KR')}주
+                    {assetSummary.quantity.toLocaleString('ko-KR')}주
                   </dd>
                 </div>
                 <div className="grid grid-cols-[auto_auto] items-baseline gap-x-6">
                   <dt className="text-xs text-[#6B7280]">1주 평균 금액</dt>
                   <dd className="text-right text-sm font-medium text-[#6B7280]">
-                    {formatCurrency(myOrder.averagePrice)}
+                    {formatCurrency(assetSummary.avgBuyPrice)}
                   </dd>
                 </div>
               </dl>
+            </div>
+          ) : hasHydrated ? (
+            <div className="flex flex-col items-center gap-4 py-8 text-sm text-gray-500">
+              <Image
+                src={myHomeEmptyIcon}
+                alt="내 자산 정보 없음"
+                width={64}
+                height={64}
+                priority
+              />
+              <p className="mt-3 text-[#5A6A86]">내 자산 정보가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-8 text-sm text-gray-500">
+              <div className="h-12 w-12 rounded-full bg-gray-200" />
+              <div className="h-3 w-24 rounded-full bg-gray-100" />
             </div>
           )}
         </CardContent>
