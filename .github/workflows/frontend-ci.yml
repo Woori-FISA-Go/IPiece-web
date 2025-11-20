@@ -72,28 +72,32 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
+          # 1. 토큰 유무 확인 (에러 원인 파악용)
+          if [ -z "$GIT_TOKEN" ]; then
+            echo "❌ Error: MANIFESTS_REPO_TOKEN is empty! Check your GitHub Secrets."
+            exit 1
+          fi
+
           git config --global user.email "ci@ipiece.local"
           git config --global user.name "ipiece-ci"
 
-          # [핵심 수정] URL에 토큰을 직접 넣지 않고, git config로 매핑 (특수문자 에러 방지)
-          # https://github.com/ 으로 요청하면 자동으로 https://토큰@github.com/ 으로 변환됨
-          git config --global url."https://${GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
+          # 2. 조직 레포지토리 클론 (가장 호환성 좋은 방식 사용)
+          # x-access-token 방식을 사용하면 특수문자 에러를 줄일 수 있습니다.
+          git clone https://x-access-token:${GIT_TOKEN}@github.com/Woori-FISA-Go/ipiece-manifests.git
 
-          # [주소 수정] 조직(Organization) 레포지토리 주소로 변경
-          git clone https://github.com/Woori-FISA-Go/ipiece-manifests.git
-
-          # 폴더 이동 (clone하면 레포 이름으로 폴더가 생김)
+          # 3. 폴더 이동
           cd ipiece-manifests/frontend
 
           echo "Before change:"
           grep "image:" deployment.yaml || true
 
-          # 이미지 태그 교체
+          # 4. 이미지 태그 교체
           sed -i "s|image: .*/$ECR_REPOSITORY:.*|image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|" deployment.yaml
 
           echo "After change:"
           grep "image:" deployment.yaml || true
 
+          # 5. 변경사항 커밋 & 푸시
           if git diff --quiet; then
             echo "No changes to commit."
           else
