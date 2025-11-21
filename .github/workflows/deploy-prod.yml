@@ -1,0 +1,91 @@
+﻿name: Frontend PROD CI/CD (Release Branch)
+
+on:
+  push:
+    branches: [ "release/**", "main" ] # 릴리즈 브랜치에 푸시될 때만 동작
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: ipiece-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run build
+        run: pnpm build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # Prod는 근본있게 'latest' 태그를 가져갑니다
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Update manifests repo (Prod Overlay)
+        env:
+          GIT_TOKEN: ${{ secrets.MANIFESTS_REPO_TOKEN }}
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        run: |
+          TRIMMED_TOKEN=$(echo "$GIT_TOKEN" | tr -d '\n' | tr -d '\r')
+          git config --global user.email "ci@ipiece.local"
+          git config --global user.name "ipiece-ci"
+          git config --global credential.helper store
+          echo "https://x-access-token:${TRIMMED_TOKEN}@github.com" > ~/.git-credentials
+
+          # 매니페스트 레포 Clone (develop 브랜치)
+          git clone -b develop https://github.com/Woori-FISA-Go/ipiece-manifests.git
+          
+          # ★ 핵심: Prod 오버레이 폴더로 이동
+          cd ipiece-manifests/apps/frontend/overlays/prod
+
+          # Kustomize로 이미지 태그 변경
+          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          # 커밋 & 푸시
+          cd ../../../..
+          if git diff --quiet; then
+            echo "⭕ No changes to commit."
+          else
+            git add .
+            git commit -m "chore(prod): update frontend image to ${IMAGE_TAG}"
+            git push origin develop
+          fi
