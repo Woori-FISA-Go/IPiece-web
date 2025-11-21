@@ -1,8 +1,8 @@
-name: Frontend CI/CD (ECR, Next.js)
+name: Frontend PROD CI/CD (Release Branch)
 
 on:
   push:
-    branches: [ "feat/cicd-test" ]
+    branches: [ "release/#test" ]  # [변경] feat/cicd-test -> release 브랜치로 변경
   workflow_dispatch:
 
 env:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) 현재 레포 체크아웃
+      # 1) 현재 레포(IPiece-web) 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 5) 빌드
+      # 5) 빌드 (Next.js)
       - name: Run build
         run: pnpm build
 
@@ -59,52 +59,50 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # 운영 배포용이니 latest 태그도 갱신
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # 9) GitOps 자동 업데이트 (믿고 쓰는 Credential Helper 버전)
-      - name: Update manifests repo with new frontend image tag
+      # [NEW] 8.5) Kustomize 설치 (YAML 수정을 위해 필수)
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      # [UPDATE] 9) GitOps 레포지토리 업데이트 (Prod 환경)
+      - name: Update manifests repo (Prod Overlay)
         env:
           GIT_TOKEN: ${{ secrets.MANIFESTS_REPO_TOKEN }}
           IMAGE_TAG: ${{ github.sha }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
-          # 1. 토큰 공백 제거
+          # 1. 토큰 처리 및 Git 유저 설정
           TRIMMED_TOKEN=$(echo "$GIT_TOKEN" | tr -d '\n' | tr -d '\r')
-
-          if [ -z "$TRIMMED_TOKEN" ]; then
-            echo "❌ Error: GIT_TOKEN is empty after trimming!"
-            exit 1
-          fi
-
+          
           git config --global user.email "ci@ipiece.local"
           git config --global user.name "ipiece-ci"
-
-          # 2. GitHub 인증 설정 (Credential Helper 방식)
           git config --global credential.helper store
           echo "https://x-access-token:${TRIMMED_TOKEN}@github.com" > ~/.git-credentials
 
-          # 3. GitOps repo clone
+          # 2. Manifest 레포 Clone
           git clone https://github.com/Woori-FISA-Go/ipiece-manifests.git
+          
+          # [중요] release 브랜치 배포이므로 'prod' 환경으로 이동
+          cd ipiece-manifests/apps/frontend/overlays/prod
 
-          cd ipiece-manifests/frontend
+          # 3. Kustomize로 이미지 태그 변경
+          # ipiece-frontend라는 이름의 이미지를 찾아서 태그를 교체함
+          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-          echo "Before change:"
-          grep "image:" deployment.yaml || true
+          # 4. 변경사항 확인 (로그용)
+          echo ">>> Changed kustomization.yaml content:"
+          cat kustomization.yaml
 
-          # 4. 이미지 태그 자동 교체
-          sed -i "s|image: .*/$ECR_REPOSITORY:.*|image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|" deployment.yaml
-
-          echo "After change:"
-          grep "image:" deployment.yaml || true
-
-          # 5. 변경사항 커밋 & 푸시
+          # 5. 커밋 & 푸시
           if git diff --quiet; then
             echo "⭕ No changes to commit."
           else
-            git add .
-            git commit -m "chore: update frontend image to ${IMAGE_TAG}"
+            git add kustomization.yaml
+            git commit -m "chore(prod): update frontend image to ${IMAGE_TAG}"
             git push
           fi
