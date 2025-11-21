@@ -22,6 +22,13 @@ export default function OfferingPage({ params }: OfferingPageProps) {
   const [detail, setDetail] = useState<OfferingDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedQuantity, setSelectedQuantity] = useState(1)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  useEffect(() => {
+    if (!toastMessage) return
+    const timer = setTimeout(() => setToastMessage(null), 2600)
+    return () => clearTimeout(timer)
+  }, [toastMessage])
 
   useEffect(() => {
     let ignore = false
@@ -86,18 +93,20 @@ export default function OfferingPage({ params }: OfferingPageProps) {
     setShowDetailsModal(true)
   }
 
-  const handleConfirmPurchase = () => {
+  const handleConfirmPurchase = (validatedQuantity: number) => {
+    setSelectedQuantity(validatedQuantity)
     setShowDetailsModal(false)
     setShowConfirmModal(true)
   }
 
   const handleFinalPurchase = () => {
     setShowConfirmModal(false)
+    setToastMessage("구매 신청이 완료되었습니다.")
   }
 
   return (
     <>
-      <main className="flex-1 bg-white" data-offering-id={resolvedParams.id}>
+      <main className="flex-1 bg-white" data-offering-id={resolvedParams.id} data-selected-quantity={selectedQuantity}>
         {error ? (
           <div className="bg-red-50 px-6 py-3 text-sm text-red-600">{error}</div>
         ) : null}
@@ -109,13 +118,22 @@ export default function OfferingPage({ params }: OfferingPageProps) {
         open={showDetailsModal}
         onOpenChange={setShowDetailsModal}
         onConfirm={handleConfirmPurchase}
+        detail={detail}
       />
 
       <PurchaseConfirmModal
         open={showConfirmModal}
         onOpenChange={setShowConfirmModal}
-        onConfirm={handleFinalPurchase}
+        detail={detail}
+        quantity={selectedQuantity}
+        onSuccess={handleFinalPurchase}
       />
+
+      {toastMessage ? (
+        <div className="fixed bottom-6 right-6 rounded-md bg-black/80 px-4 py-2 text-sm text-white shadow-lg">
+          {toastMessage}
+        </div>
+      ) : null}
     </>
   )
 }
