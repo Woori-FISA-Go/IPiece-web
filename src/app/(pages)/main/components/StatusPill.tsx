@@ -6,7 +6,7 @@ interface StatusPillProps {
 
 export function StatusPill({ status }: StatusPillProps) {
   const isOffering = status === "OFFERING"
-  const label = isOffering ? "공모 중ㅇㅇㅇㅇ" : "거래 중"
+  const label = isOffering ? "공모 중" : "거래 중"
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
