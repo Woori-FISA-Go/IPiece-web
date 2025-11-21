@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { TradingChart } from '@/components/trade/chart/chart';
+import type { TradeTickMessage } from '@/components/trade/chart/chart';
 import { OrderForm } from '@/components/trade/chart/order-form';
 import type { AssetSummary as OrderAssetSummary } from '@/components/trade/chart/order-form';
 import { OrderBook } from '@/components/trade/chart/orderbook';
@@ -17,6 +18,10 @@ import type { Notice, SecurityInfo } from '@/lib/mock-info';
 import { MOCK_INFO } from '@/lib/mock-info';
 import { buildHeartMaskStyle } from '@/components/common/heart-mask-style';
 import { apiFetch } from '@/lib/api-client';
+import { useStompTopics, type StompTopicConfig } from '@/hooks/use-orderbook-subscription';
+import { getUserId } from '@/lib/auth';
+
+const wsDebugEnabled = process.env.NEXT_PUBLIC_WS_DEBUG === 'true';
 
 type ProductInfo = {
   product_id: number;
@@ -97,6 +102,9 @@ export default function TradingDetailPage() {
   const [notices, setNotices] = useState<Notice[] | undefined>(undefined);
   const [assetSummary, setAssetSummary] = useState<OrderAssetSummary | null>(null);
   const [orderBookData, setOrderBookData] = useState<OrderBookProps | null>(null);
+  const [pendingRefreshToken, setPendingRefreshToken] = useState(0);
+  const [latestTick, setLatestTick] = useState<TradeTickMessage | null>(null);
+  const [userId, setUserId] = useState<number | string | null>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<'chart' | 'info', HTMLButtonElement | null>>({
     chart: null,
@@ -133,6 +141,10 @@ export default function TradingDetailPage() {
   useEffect(() => {
     requestAnimationFrame(updateHighlightPosition);
   }, [activeTab]);
+
+  useEffect(() => {
+    setUserId(getUserId());
+  }, []);
 
   useEffect(() => {
     const handleResize = () => updateHighlightPosition();
@@ -204,6 +216,87 @@ export default function TradingDetailPage() {
     fetchAsset();
   }, [id]);
 
+  const handleOrderBookPayload = useCallback(
+    (data?: Partial<OrdersResponse>) => {
+      if (!data) return;
+      const mapOrders = (orders: OrdersResponse['orders_sell']) =>
+        orders?.map((order) => ({
+          price: order.order_price,
+          quantity: order.quantity,
+          changePct: order.price_change,
+        })) ?? [];
+
+      setOrderBookData({
+        summary: {
+          highestPrice: data.summary?.highest_price ?? 0,
+          lowestPrice: data.summary?.lowest_price ?? 0,
+          lastPrice: data.summary?.last_price ?? 0,
+          priceChange: data.summary?.price_change ?? 0,
+          limitUpPrice: data.summary?.limit_up_price ?? 0,
+          limitDownPrice: data.summary?.limit_down_price ?? 0,
+          thisWeekVolume: data.summary?.this_week_volume ?? 0,
+          lastWeekVolume: data.summary?.last_week_volume ?? 0,
+        },
+        ordersSell: mapOrders(data.orders_sell ?? []),
+        ordersBuy: mapOrders(data.orders_buy ?? []),
+      });
+
+      if (data.summary) {
+        setProductInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_price: data.summary?.last_price ?? prev.current_price,
+                change_rate: data.summary?.price_change ?? prev.change_rate,
+              }
+            : prev,
+        );
+      }
+    },
+    [],
+  );
+
+  const handleHoldingPayload = useCallback((payload: unknown) => {
+    if (!payload) {
+      setAssetSummary(null);
+      return;
+    }
+    const data = payload as Record<string, unknown>;
+    const toNumber = (value: unknown) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : 0;
+    };
+    setAssetSummary({
+      productName: (data.product_name ?? data.productName ?? '') as string,
+      quantity: toNumber(data.quantity),
+      avgBuyPrice: toNumber(data.avg_buy_price ?? data.avgBuyPrice),
+      totalAmount: toNumber(data.total_amount ?? data.totalAmount),
+      totalProfitAmount: toNumber(
+        data.total_profit_amount ?? data.totalProfitAmount,
+      ),
+      totalProfitRate: toNumber(
+        data.total_profit_rate ?? data.totalProfitRate,
+      ),
+    });
+  }, []);
+
+  const handlePendingRealtime = useCallback(() => {
+    setPendingRefreshToken(Date.now());
+  }, []);
+
+  const handleChartTick = useCallback((payload: unknown) => {
+    setLatestTick(payload as TradeTickMessage);
+  }, []);
+
+  const handleProductPriceUpdate = useCallback((payload: unknown) => {
+    const price =
+      typeof payload === 'number' ? payload : Number(payload ?? NaN);
+    if (Number.isNaN(price)) return;
+    setProductInfo((prev) =>
+      prev ? { ...prev, current_price: price } : prev,
+    );
+  }, []);
+
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -214,27 +307,7 @@ export default function TradingDetailPage() {
           return;
         }
         const data = (await res.json()) as OrdersResponse;
-        const mapOrders = (orders: OrdersResponse['orders_sell']) =>
-          orders?.map((order) => ({
-            price: order.order_price,
-            quantity: order.quantity,
-            changePct: order.price_change,
-          })) ?? [];
-
-        setOrderBookData({
-          summary: {
-            highestPrice: data.summary?.highest_price ?? 0,
-            lowestPrice: data.summary?.lowest_price ?? 0,
-            lastPrice: data.summary?.last_price ?? 0,
-            priceChange: data.summary?.price_change ?? 0,
-            limitUpPrice: data.summary?.limit_up_price ?? 0,
-            limitDownPrice: data.summary?.limit_down_price ?? 0,
-            thisWeekVolume: data.summary?.this_week_volume ?? 0,
-            lastWeekVolume: data.summary?.last_week_volume ?? 0,
-          },
-          ordersSell: mapOrders(data.orders_sell ?? []),
-          ordersBuy: mapOrders(data.orders_buy ?? []),
-        });
+        handleOrderBookPayload(data);
       } catch (error) {
         console.error('Failed to fetch order book data', error);
         setOrderBookData(null);
@@ -242,7 +315,53 @@ export default function TradingDetailPage() {
     };
 
     fetchOrders();
-  }, [id]);
+  }, [handleOrderBookPayload, id]);
+
+  const numericProductId = productInfo?.product_id ?? Number(id);
+
+  const stompTopics = useMemo(() => {
+    const topics: StompTopicConfig[] = [];
+    if (Number.isFinite(numericProductId)) {
+      topics.push({
+        destination: `/topic/orderbook/${numericProductId}`,
+        handler: (message: unknown) =>
+          handleOrderBookPayload(message as Partial<OrdersResponse>),
+      });
+      topics.push({
+        destination: `/topic/chart/${numericProductId}`,
+        handler: handleChartTick,
+      });
+      topics.push({
+        destination: `/topic/product/${numericProductId}/price`,
+        handler: handleProductPriceUpdate,
+        parseJson: false,
+      });
+    }
+    if (userId != null && Number.isFinite(numericProductId)) {
+      topics.push({
+        destination: `/topic/holding/${userId}/${numericProductId}`,
+        handler: handleHoldingPayload,
+      });
+      topics.push({
+        destination: `/topic/pending-orders/${userId}/${numericProductId}`,
+        handler: handlePendingRealtime,
+      });
+    }
+    return topics;
+  }, [
+    handleChartTick,
+    handleHoldingPayload,
+    handleOrderBookPayload,
+    handlePendingRealtime,
+    handleProductPriceUpdate,
+    numericProductId,
+    userId,
+  ]);
+
+  useStompTopics({
+    debug: wsDebugEnabled,
+    topics: stompTopics,
+  });
 
   const mappedInfo = useMemo<SecurityInfo | null>(() => {
     if (!productInfo || !productDetails) return null;
@@ -296,7 +415,7 @@ export default function TradingDetailPage() {
     ? 'text-gray-500'
     : isPositiveChange
       ? 'text-[#E53333]'
-      : 'text-[#3386E5]';
+      : 'text-[#2563EB]';
 
   const infoForCards: SecurityInfo = mappedInfo ?? MOCK_INFO;
   const fallbackThumbnail = 'https://via.placeholder.com/64x64.png?text=IP';
@@ -341,7 +460,7 @@ export default function TradingDetailPage() {
             </div>
             <button
               onClick={() => setLiked(!liked)}
-              className="rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
+              className="rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2563EB]"
               aria-label={liked ? '좋아요 취소' : '좋아요'}
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-[#EAECF0]">
@@ -409,7 +528,10 @@ export default function TradingDetailPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[620px_320px_minmax(0,1fr)] lg:[--panel-height:640px] items-stretch">
             {/* Chart - Left Column */}
             <div className="lg:h-[var(--panel-height)] lg:w-[620px]">
-              <TradingChart productId={productInfo?.product_id ?? Number(id)} />
+              <TradingChart
+                productId={productInfo?.product_id ?? Number(id)}
+                liveTick={latestTick}
+              />
             </div>
 
             {/* Order Form - Middle Column */}
@@ -418,6 +540,7 @@ export default function TradingDetailPage() {
                 currentPrice={productInfo?.current_price ?? 0}
                 assetSummary={assetSummary}
                 productId={productInfo?.product_id ?? Number(id)}
+                pendingRefreshToken={pendingRefreshToken}
               />
             </div>
 

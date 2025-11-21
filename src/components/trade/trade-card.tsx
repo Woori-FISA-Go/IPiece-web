@@ -32,7 +32,7 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
     ? 'bg-gray-100 text-gray-600'
     : isPositive
       ? 'bg-[#FFB8B8]/48 text-[#E53333]'
-      : 'bg-[#B8D9FF]/48 text-[#3386E5]';
+      : 'bg-[#B8D9FF]/48 text-[#2563EB]';
 
   const handleCardNavigation = () => {
     router.push(`/trading/${item.id}`);
@@ -52,7 +52,7 @@ export function TradeCard({ item, onLikeToggle }: TradeCardProps) {
 
   return (
     <Card
-      className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A4DE5]"
+      className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2563EB]"
       onClick={handleCardNavigation}
       role="button"
       tabIndex={0}

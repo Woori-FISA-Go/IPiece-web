@@ -288,7 +288,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
           />
           {tooltipStyle && (
             <div
-              className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
+              className="absolute pointer-events-none rounded-lg bg-[#2563EB] px-3 py-2 text-xs text-white shadow-lg"
               style={tooltipStyle}
             >
               <div className="text-[11px] font-medium text-white/80">{tooltip.dateLabel}</div>
