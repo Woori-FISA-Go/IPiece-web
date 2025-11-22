@@ -96,6 +96,7 @@ export default function TradingDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const [liked, setLiked] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
   const [activeTab, setActiveTab] = useState<'chart' | 'info'>('chart');
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
@@ -427,6 +428,30 @@ export default function TradingDetailPage() {
     setThumbnailSrc(nextSrc);
   }, [productInfo?.thumbnail_img, infoForCards.heroImage]);
 
+  const handleFavoriteToggle = useCallback(async () => {
+    if (favoritePending) return;
+    const productId = productInfo?.product_id ?? Number(id);
+    if (!productId || Number.isNaN(productId)) return;
+    const previousLiked = liked;
+    const nextLiked = !previousLiked;
+    setLiked(nextLiked);
+    setFavoritePending(true);
+    try {
+      const res = await apiFetch(`/v1/products/${productId}/favorite`, {
+        method: nextLiked ? 'POST' : 'DELETE',
+        headers: { accept: '*/*' },
+      });
+      if (!res.ok) {
+        throw new Error(`Favorite toggle failed: ${res.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite', error);
+      setLiked(previousLiked);
+    } finally {
+      setFavoritePending(false);
+    }
+  }, [favoritePending, id, liked, productInfo?.product_id]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -459,9 +484,11 @@ export default function TradingDetailPage() {
               </div>
             </div>
             <button
-              onClick={() => setLiked(!liked)}
+              onClick={handleFavoriteToggle}
+              disabled={favoritePending}
               className="rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2563EB]"
               aria-label={liked ? '좋아요 취소' : '좋아요'}
+              aria-pressed={liked}
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-[#EAECF0]">
                 <span
