@@ -1,172 +1,171 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Image from "next/image" // 1. Image 컴포넌트 import
-import walletIcon from "@/assets/images/wallet_icon.svg" // 2. 새 SVG 파일 import
+import { useMemo, useState } from "react"
+import Image from "next/image"
+import walletIcon from "@/assets/images/wallet_icon.svg"
 import { CustomCard as Card } from "@/components/ui/custom-card"
 import { Button } from "@/components/ui/button"
+import type { AccountJournalEntry, AccountJournalSummary } from "./types"
 
-// Sample deposit/withdrawal data
-const sampleDepositHistory = [
-  { date: "2025.09.29", time: "00:36", type: "입금 완료", amount: "236 KRW" },
-  { date: "2025.09.29", time: "00:36", type: "입금 완료", amount: "236 KRW" },
-  { date: "2025.09.28", time: "00:36", type: "출금 완료", amount: "236 KRW" },
-  { date: "2025.09.28", time: "00:36", type: "배당금", amount: "236 KRW" },
-  { date: "2025.09.27", time: "00:36", type: "입금 완료", amount: "236 KRW" },
-]
+interface AccountDepositPanelProps {
+  accountState: "noAccount" | "emptyHistory" | "hasHistory"
+  summary?: AccountJournalSummary | null
+  items: AccountJournalEntry[]
+  isLoading?: boolean
+  error?: string | null
+  userName?: string | null
+}
+
+const numberFormatter = new Intl.NumberFormat("ko-KR")
+
+function formatAmount(value?: number) {
+  if (typeof value !== "number") return "0 KRW"
+  const sign = value > 0 ? "+" : value < 0 ? "-" : ""
+  return `${sign}${numberFormatter.format(Math.abs(value))} KRW`
+}
+
+function formatDate(value?: string) {
+  if (!value) return "-"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const yyyy = date.getFullYear()
+  const mm = `${date.getMonth() + 1}`.padStart(2, "0")
+  const dd = `${date.getDate()}`.padStart(2, "0")
+  const hh = `${date.getHours()}`.padStart(2, "0")
+  const min = `${date.getMinutes()}`.padStart(2, "0")
+  return `${yyyy}.${mm}.${dd} ${hh}:${min}`
+}
+
+function getJournalLabel(txType?: string) {
+  const key = (txType ?? "").toUpperCase()
+  if (key === "DEPOSIT" || key === "TRADE_SELL") return { text: "입금 완료", theme: "positive" }
+  if (key === "WITHDRAW" || key === "TRADE_BUY" || key === "OFFERING_BUY") return { text: "출금 완료", theme: "negative" }
+  if (key === "DIVIDEND") return { text: "배당금", theme: "positive" }
+  return { text: "내역", theme: "neutral" }
+}
 
 export default function AccountDepositPanel({
   accountState,
-  setAccountState,
-}: {
-  accountState: "noAccount" | "emptyHistory" | "hasHistory"
-  setAccountState: (value: "noAccount" | "emptyHistory" | "hasHistory") => void
-}) {
-  const [activeTab, setActiveTab] = useState("내역")
-  const [depositHistory, setDepositHistory] = useState<typeof sampleDepositHistory>([])
+  summary,
+  items,
+  isLoading,
+  error,
+  userName,
+}: AccountDepositPanelProps) {
+  const [activeTab, setActiveTab] = useState<"ALL" | "DEPOSIT" | "WITHDRAW">("ALL")
 
-  useEffect(() => {
-    if (accountState === "hasHistory") {
-      setDepositHistory(sampleDepositHistory)
-    } else {
-      setDepositHistory([])
-    }
-  }, [accountState])
-
-  const filteredHistory = depositHistory.filter((item) => {
-    if (activeTab === "입금") return item.type === "입금 완료"
-    if (activeTab === "출금") return item.type === "출금 완료"
-    return true // Show all for "내역" tab
-  })
+  const filteredItems = useMemo(() => {
+    const ordered = [...items].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    if (activeTab === "ALL") return ordered
+    return ordered.filter((item) => {
+      const key = (item.txType ?? "").toUpperCase()
+      if (activeTab === "DEPOSIT") {
+        return key === "DEPOSIT" || key === "TRADE_SELL" || key === "DIVIDEND"
+      }
+      return key === "WITHDRAW" || key === "TRADE_BUY" || key === "OFFERING_BUY"
+    })
+  }, [items, activeTab])
 
   if (accountState === "noAccount") {
+    const displayName = userName || "회원"
     return (
-      <div className="space-y-4 flex flex-col">
+      <div className="space-y-4">
         <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
-        <Card className="border border-gray-200 p-6 flex-grow flex flex-col">
-          {/* Balance Summary (empty) */}
-          <div className="space-y-3 mb-6 pb-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">총 보유</span>
-              <div className="text-right">
-                <span className="text-lg font-bold text-gray-900">0</span>
-                <span className="text-xs text-gray-500 ml-1">KRW</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">거래가능</span>
-              <div className="text-right">
-                <span className="text-lg font-bold text-gray-900">0</span>
-                <span className="text-xs text-gray-500 ml-1">KRW</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Empty state with button */}
-          <div className="flex-grow flex flex-col items-center justify-center text-center">
-            <Image
-              src={walletIcon}
-              alt="가상 계좌 없음"
-              className="mb-4"
-            />
-            <p className="text-gray-700 text-sm mb-6">가상 계좌가 아직 없습니다.</p>
-            <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6" onClick={() => setAccountState("emptyHistory")}>
-              가상 계좌 생성하기
-            </Button>
-          </div>
+        <Card className="flex flex-col items-center gap-4 border border-gray-200 px-6 py-10 text-center">
+          <Image src={walletIcon} alt="가상계좌 없음" width={56} height={56} />
+          <p className="text-sm text-gray-700">
+            <span className="font-semibold text-gray-900">{displayName}</span>님, 가상 계좌를 생성하고 거래를 시작해보세요.
+          </p>
+          <Button className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]">가상계좌 생성하기</Button>
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4 flex flex-col">
+    <div className="space-y-4">
       <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
 
-      <Card className="border border-gray-200 p-6 flex-grow flex flex-col">
-        {/* Balance Summary */}
-        <div className="space-y-3 mb-6 pb-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">총 보유</span>
-            <div className="text-right">
-              <span className="text-lg font-bold text-gray-900">{depositHistory.length > 0 ? "29,329" : "0"}</span>
-              <span className="text-xs text-gray-500 ml-1">KRW</span>
+      <Card className="flex flex-col border border-gray-200 p-6">
+        {summary ? (
+          <div className="mb-6 space-y-3 border-b border-gray-200 pb-6">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>계좌 번호</span>
+              <span className="font-medium text-gray-900">{summary.accountNo ?? "-"}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">총 보유</span>
+              <span className="text-lg font-bold text-gray-900">
+                {numberFormatter.format(summary.totalBalance ?? summary.totalPrice ?? summary.balanceKrw ?? 0)}{" "}
+                <span className="text-xs font-normal text-gray-500">KRW</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">거래대기</span>
+              <span className="text-lg font-bold text-gray-900">
+                {numberFormatter.format(summary.pendingPrice ?? 0)} <span className="text-xs font-normal text-gray-500">KRW</span>
+              </span>
             </div>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">거래가능</span>
-            <div className="text-right">
-              <span className="text-lg font-bold text-gray-900">{depositHistory.length > 0 ? "0" : "0"}</span>
-              <span className="text-xs text-gray-500 ml-1">KRW</span>
-            </div>
+        ) : null}
+
+        <div className="mb-6 flex border-b border-gray-200">
+          {[
+            { key: "ALL", label: "내역" },
+            { key: "DEPOSIT", label: "입금" },
+            { key: "WITHDRAW", label: "출금" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === tab.key ? "border-b-2 border-blue-500 text-blue-500" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="flex flex-1 items-center justify-center py-12 text-sm text-gray-500">
+            입출금 내역을 불러오는 중입니다.
           </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
-          <button
-            onClick={() => setActiveTab("내역")}
-            className={`flex-1 py-2 text-sm font-medium ${
-              activeTab === "내역" ? "text-blue-500 border-b-2 border-blue-500" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            내역
-          </button>
-          <button
-            onClick={() => setActiveTab("입금")}
-            className={`flex-1 py-2 text-sm font-medium ${
-              activeTab === "입금" ? "text-blue-500 border-b-2 border-blue-500" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            입금
-          </button>
-          <button
-            onClick={() => setActiveTab("출금")}
-            className={`flex-1 py-2 text-sm font-medium ${
-              activeTab === "출금" ? "text-blue-500 border-b-2 border-blue-500" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            출금
-          </button>
-        </div>
-
-        <div className="space-y-4 max-h-[400px] overflow-y-auto flex-grow">
-          {accountState === "emptyHistory" ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              {/* 4. 두 번째 SVG 교체 */}
-              <Image
-                src={walletIcon}
-                alt="입출금 내역 없음"
-                className="mb-4"
-                // width/height는 import된 SVG가 자동으로 인식합니다.
-              />
-              <p className="text-gray-700 text-sm mb-6 text-center">조회된 입출금 내역이 없습니다.</p>
-            </div>
-          ) : (
-            filteredHistory.map((item, index) => (
-              <div key={index} className="pb-4 border-b border-gray-100 last:border-0">
-                <div className="text-xs text-gray-500 mb-2">{item.date}</div>
-                <div className="flex justify-between items-center">
+        ) : error ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-red-500">
+            {error}
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-gray-500">
+            조회된 입출금 내역이 없습니다.
+          </div>
+        ) : (
+          <div className="flex max-h-[400px] flex-col gap-4 overflow-y-auto">
+            {filteredItems.map((item) => {
+              const journalLabel = getJournalLabel(item.txType)
+              const amountValue = item.amountKrw ?? 0
+              const amountClass =
+                journalLabel.theme === "positive"
+                  ? "text-blue-500"
+                  : journalLabel.theme === "negative"
+                    ? "text-red-500"
+                    : "text-gray-800"
+              return (
+                <div key={item.id} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0">
                   <div>
-                    <div
-                      className={`text-sm font-medium ${
-                        item.type === "입금 완료"
-                          ? "text-red-500"
-                          : item.type === "출금 완료"
-                          ? "text-blue-500"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      {item.type}
-                    </div>
-                    <div className="text-xs text-gray-500">{item.time}</div>
+                    <div className="text-xs text-gray-500">{formatDate(item.createdAt)}</div>
+                    <div className="text-sm font-medium text-gray-900">{journalLabel.text}</div>
+                    {item.description ? <div className="text-xs text-gray-500">{item.description}</div> : null}
                   </div>
-                  <div className="text-sm font-medium text-black">{item.amount}</div>
+                  <div className={`text-sm font-semibold ${amountClass}`}>{formatAmount(amountValue)}</div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </Card>
     </div>
   )

@@ -1,18 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import InterestItem from "@/components/mypage/InterestItem"
 import InterestListEmpty from "./InterestListEmpty"
-import dinosaurRobot from "@/assets/images/dinosaur-robot-character.jpg"
-import greenDinosaur from "@/assets/images/green-dinosaur-character.jpg"
-import cuteAnimal from "@/assets/images/cute-animal-characters.jpg"
-import grayPlaceholder from "@/assets/images/gray-placeholder.png"
-import { StaticImageData } from "next/image"
+import type { StaticImageData } from "next/image"
+import { apiFetch } from "@/lib/api-client"
 
-// Mock data type
 export interface InterestProduct {
   id: string
   name: string
@@ -20,155 +16,112 @@ export interface InterestProduct {
   currentPrice: number
   priceChange?: number
   imageUrl: string | StaticImageData
+  isFavorite?: boolean
 }
 
-// Mock data
-const mockProducts: InterestProduct[] = [
-  {
-    id: "1",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: -0.45,
-    imageUrl: dinosaurRobot,
-  },
-  {
-    id: "2",
-    name: "초구만",
-    category: "공모",
-    currentPrice: 120,
-    imageUrl: greenDinosaur,
-  },
-  {
-    id: "3",
-    name: "미니니",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: cuteAnimal,
-  },
-  {
-    id: "4",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: grayPlaceholder,
-  },
-  {
-    id: "5",
-    name: "다이노봇",
-    category: "공모",
-    currentPrice: 100,
-    imageUrl: grayPlaceholder,
-  },
-  {
-    id: "6",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: -0.45,
-    imageUrl: dinosaurRobot,
-  },
-  {
-    id: "7",
-    name: "초구만",
-    category: "공모",
-    currentPrice: 120,
-    imageUrl: greenDinosaur,
-  },
-  {
-    id: "8",
-    name: "미니니",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: cuteAnimal,
-  },
-  {
-    id: "9",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: grayPlaceholder,
-  },
-  {
-    id: "10",
-    name: "다이노봇",
-    category: "공모",
-    currentPrice: 100,
-    imageUrl: grayPlaceholder,
-  },
-  {
-    id: "11",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: -0.45,
-    imageUrl: dinosaurRobot,
-  },
-  {
-    id: "12",
-    name: "초구만",
-    category: "공모",
-    currentPrice: 120,
-    imageUrl: greenDinosaur,
-  },
-  {
-    id: "13",
-    name: "미니니",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: cuteAnimal,
-  },
-  {
-    id: "14",
-    name: "다이노봇",
-    category: "2차 거래",
-    currentPrice: 100,
-    priceChange: 0.45,
-    imageUrl: grayPlaceholder,
-  },
-  {
-    id: "15",
-    name: "다이노봇",
-    category: "공모",
-    currentPrice: 100,
-    imageUrl: grayPlaceholder,
-  },
-]
-
-interface InterestListProps {
-  products?: InterestProduct[]
-  itemsPerPage?: number
+type ApiFavoriteItem = {
+  product_id: number
+  product_name: string
+  status?: string
+  thumbnail?: string
+  current_price?: number
+  price_change_rate?: number
+  is_favorite?: boolean
 }
 
-export default function InterestList({ products = mockProducts, itemsPerPage = 5 }: InterestListProps) {
+const PAGE_SIZE = 5
+
+export default function InterestList() {
+  const [items, setItems] = useState<InterestProduct[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(products.map((p) => p.id)))
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
-  // If no products, show empty state
-  if (products.length === 0) {
-    return <InterestListEmpty />
-  }
-
-  const totalPages = Math.ceil(products.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentProducts = products.slice(startIndex, endIndex)
-
-  const handleToggleFavorite = (productId: string) => {
-    setFavorites((prev) => {
-      const newFavorites = new Set(prev)
-      if (newFavorites.has(productId)) {
-        newFavorites.delete(productId)
-      } else {
-        newFavorites.add(productId)
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const res = await apiFetch("/v1/mypage/favorites")
+        if (!res.ok) {
+          let message: string | undefined
+          try {
+            const body = (await res.json()) as { detail?: string; message?: string }
+            message = body.detail || body.message
+          } catch {
+            /* ignore */
+          }
+          throw new Error(message || "관심 목록을 불러오지 못했습니다.")
+        }
+        const data = (await res.json()) as { total_count?: number; items?: ApiFavoriteItem[] }
+        const mapped = (data.items ?? []).map(mapFavoriteItem)
+        setItems(mapped)
+        setTotalCount(data.total_count ?? mapped.length)
+        setFavorites(new Set(mapped.filter((item) => item.isFavorite).map((item) => item.id)))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "관심 목록을 불러오지 못했습니다.")
+        setItems([])
+        setTotalCount(0)
+      } finally {
+        setIsLoading(false)
       }
-      return newFavorites
-    })
+    }
+    fetchFavorites()
+  }, [])
+
+  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / PAGE_SIZE))
+  const pagedProducts = useMemo(() => {
+    if (!items.length) return []
+    const start = (currentPage - 1) * PAGE_SIZE
+    return items.slice(start, start + PAGE_SIZE)
+  }, [items, currentPage])
+
+  const handleToggleFavorite = async (productId: string) => {
+    if (!productId || removingId === productId) return
+    setActionError(null)
+    setRemovingId(productId)
+    const numericId = Number(productId)
+    try {
+      const res = await apiFetch(`/v1/products/${Number.isNaN(numericId) ? productId : numericId}/favorite`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        let message: string | undefined
+        try {
+          const body = (await res.json()) as { detail?: string; message?: string }
+          message = body.detail || body.message
+        } catch {
+          /* ignore */
+        }
+        throw new Error(message || "관심 상품 해제에 실패했습니다.")
+      }
+      setItems((prev) => {
+        const updated = prev.filter((item) => item.id !== productId)
+        const removedCount = prev.length - updated.length
+        if (removedCount > 0) {
+          setTotalCount((prevTotal) => {
+            const nextTotal = Math.max(0, prevTotal - removedCount)
+            const nextPageMax = Math.max(1, Math.ceil(Math.max(nextTotal, 1) / PAGE_SIZE))
+            setCurrentPage((prevPage) => Math.min(prevPage, nextPageMax))
+            return nextTotal
+          })
+        }
+        return updated
+      })
+      setFavorites((prev) => {
+        const next = new Set(prev)
+        next.delete(productId)
+        return next
+      })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "관심 상품 해제에 실패했습니다.")
+    } finally {
+      setRemovingId(null)
+    }
   }
 
   const handlePageChange = (page: number) => {
@@ -177,18 +130,30 @@ export default function InterestList({ products = mockProducts, itemsPerPage = 5
     }
   }
 
+  if (isLoading) {
+    return <div className="py-12 text-center text-sm text-gray-500">관심 목록을 불러오는 중입니다.</div>
+  }
+
+  if (error) {
+    return (
+      <div className="py-12 text-center text-sm text-red-500">
+        {error}
+      </div>
+    )
+  }
+
+  if (!items.length) {
+    return <InterestListEmpty />
+  }
+
   return (
     <div className="space-y-6">
-      {/* Total count */}
-      <div className="text-sm text-gray-600">총 {products.length}개</div>
-
-      {/* Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        {/* [수정] table-fixed 적용 */}
+      <div className="text-sm text-gray-600">총 {totalCount}개</div>
+      {actionError ? <p className="text-sm text-red-500">{actionError}</p> : null}
+      <div className="rounded-lg border border-gray-200">
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="bg-gray-50">
-              {/* [수정] 기준이 되는 너비로 설정 (40/20/25/15) */}
               <TableHead className="w-[40%] font-medium text-gray-700">IP 정보</TableHead>
               <TableHead className="w-[20%] text-center font-medium text-gray-700">상품 분류</TableHead>
               <TableHead className="w-[25%] text-center font-medium text-gray-700">현재가</TableHead>
@@ -196,20 +161,20 @@ export default function InterestList({ products = mockProducts, itemsPerPage = 5
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currentProducts.map((product) => (
+            {pagedProducts.map((product) => (
               <InterestItem
                 key={product.id}
                 product={product}
                 isFavorite={favorites.has(product.id)}
                 onToggleFavorite={handleToggleFavorite}
+                disabled={removingId === product.id}
               />
             ))}
           </TableBody>
         </Table>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-center gap-2 mt-6">
+      <div className="mt-6 flex items-center justify-center gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -239,10 +204,7 @@ export default function InterestList({ products = mockProducts, itemsPerPage = 5
               variant={currentPage === pageNum ? "default" : "ghost"}
               size="icon"
               onClick={() => handlePageChange(pageNum)}
-              className={`h-8 w-8 ${
-                currentPage === pageNum ? "bg-black text-white hover:bg-black/90" : "hover:bg-gray-100"
-              }`}
-              aria-label={`페이지 ${pageNum}`}
+              className={`h-8 w-8 ${currentPage === pageNum ? "bg-black text-white hover:bg-black/90" : "hover:bg-gray-100"}`}
               aria-current={currentPage === pageNum ? "page" : undefined}
             >
               {pageNum}
@@ -263,4 +225,17 @@ export default function InterestList({ products = mockProducts, itemsPerPage = 5
       </div>
     </div>
   )
+}
+
+function mapFavoriteItem(data: ApiFavoriteItem): InterestProduct {
+  const fallbackId = `favorite-${Math.random().toString(36).slice(2, 11)}`
+  return {
+    id: data.product_id?.toString() ?? fallbackId,
+    name: data.product_name ?? "알 수 없는 상품",
+    category: data.status ?? "-",
+    currentPrice: data.current_price ?? 0,
+    priceChange: typeof data.price_change_rate === "number" ? data.price_change_rate : undefined,
+    imageUrl: data.thumbnail || "",
+    isFavorite: Boolean(data.is_favorite),
+  }
 }
