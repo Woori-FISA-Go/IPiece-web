@@ -4,23 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ArrowUp,
   ArrowDown,
-  MoreHorizontal,
   Wallet,
   Users,
   ShoppingCart,
   Activity,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts';
 
 const summaryData = [
   {
@@ -54,23 +42,24 @@ const summaryData = [
     trend: 'up',
     icon: Activity,
     color: 'bg-purple-500',
+    tagColor: { text: 'text-purple-600', bg: 'bg-purple-50' },
   },
 ];
 
-const chartData = [
-  { name: '1월', revenue: 4000, expenses: 2400 },
-  { name: '2월', revenue: 3000, expenses: 1398 },
-  { name: '3월', revenue: 2000, expenses: 9800 },
-  { name: '4월', revenue: 2780, expenses: 3908 },
-  { name: '5월', revenue: 1890, expenses: 4800 },
-  { name: '6월', revenue: 2390, expenses: 3800 },
-  { name: '7월', revenue: 3490, expenses: 4300 },
+const topSecondaryTrades = [
+  { name: '다이노탱 1차', trades: 482, avgPrice: 1200 },
+  { name: '겨울 멈무', trades: 361, avgPrice: 950 },
+  { name: '봄날의 햇살', trades: 295, avgPrice: 1320 },
+  { name: '우주 여행자', trades: 188, avgPrice: 2100 },
+  { name: '루나 크리스탈', trades: 142, avgPrice: 3100 },
 ];
 
-const pieData = [
-  { name: '진행중', value: 400, color: '#3869FA' },
-  { name: '대기', value: 300, color: '#B8D9FF' },
-  { name: '마감', value: 300, color: '#1A1A2E' },
+const topPriceTokens = [
+  { name: '루나 크리스탈', pricePerToken: 31250 },
+  { name: '우주 여행자', pricePerToken: 25700 },
+  { name: '다이노탱 1차', pricePerToken: 18400 },
+  { name: '겨울 멈무', pricePerToken: 15200 },
+  { name: '봄날의 햇살', pricePerToken: 13900 },
 ];
 
 const recentTx = [
@@ -123,7 +112,13 @@ export default function AdminDashboard() {
                   />
                 </div>
                 {item.trend === 'up' ? (
-                  <div className="flex items-center text-xs font-medium text-green-500 bg-green-50 px-2 py-1 rounded-full">
+                  <div
+                    className={`flex items-center text-xs font-medium px-2 py-1 rounded-full ${
+                      item.tagColor
+                        ? `${item.tagColor.text} ${item.tagColor.bg}`
+                        : 'text-green-500 bg-green-50'
+                    }`}
+                  >
                     <ArrowUp className="mr-1 h-3 w-3" />
                     {item.change}
                   </div>
@@ -145,104 +140,65 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        {/* Analytics Chart */}
-        <Card className="col-span-4 border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-medium">
-              월별 수익 및 지출
-            </CardTitle>
-            <button className="text-gray-400 hover:text-gray-600">
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </CardHeader>
-          <CardContent className="pl-0">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis
-                    dataKey="name"
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `₩${value}`}
-                  />
-                  <Tooltip
-                    cursor={{ fill: 'transparent' }}
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    }}
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    fill="#3869FA"
-                    radius={[4, 4, 0, 0]}
-                    barSize={20}
-                  />
-                  <Bar
-                    dataKey="expenses"
-                    fill="#FFB8B8"
-                    radius={[4, 4, 0, 0]}
-                    barSize={20}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Status Pie Chart */}
-        <Card className="col-span-3 border-none shadow-sm">
+      <div className="grid gap-6 md:grid-cols-2 items-stretch">
+        <Card className="border-none shadow-sm h-full">
           <CardHeader>
             <CardTitle className="text-base font-medium">
-              공모 상태 현황
+              2차거래 체결 TOP 5
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex flex-col items-center justify-center">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-4 grid grid-cols-3 gap-4 text-center w-full">
-                {pieData.map((item, index) => (
-                  <div key={index} className="flex flex-col items-center">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-xs text-gray-500">{item.name}</span>
-                    </div>
-                    <span className="text-sm font-bold">
-                      {Math.floor((item.value / 1000) * 100)}%
+            <ol className="space-y-3">
+              {topSecondaryTrades.map((item, index) => (
+                <li
+                  key={item.name}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-gray-400">
+                      {index + 1}
                     </span>
+                    <div>
+                      <p className="font-medium text-gray-900">{item.name}</p>
+                      <p className="text-xs text-gray-500">
+                        최근 거래 {item.trades.toLocaleString()}건
+                      </p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <span className="text-sm font-semibold text-blue-600">
+                    {item.avgPrice.toLocaleString()}원
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm h-full">
+          <CardHeader>
+            <CardTitle className="text-base font-medium">
+              토큰가 TOP 5
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-3">
+              {topPriceTokens.map((item, index) => (
+                <li
+                  key={item.name}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-gray-400">
+                      {index + 1}
+                    </span>
+                    <p className="font-medium text-gray-900">{item.name}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-emerald-600">
+                    {item.pricePerToken.toLocaleString()}원
+                  </span>
+                </li>
+              ))}
+            </ol>
           </CardContent>
         </Card>
       </div>
@@ -296,7 +252,7 @@ export default function AdminDashboard() {
         </Card>
 
         {/* System Monitoring */}
-        <Card className="border-none shadow-sm bg-[#1A1A2E] text-white">
+        <Card className="border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-base font-medium">
               시스템 모니터링
@@ -306,10 +262,10 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">서버 부하</span>
+                  <span className="text-gray-600">서버 부하</span>
                   <span>45%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-800">
+                <div className="h-2 w-full rounded-full bg-gray-100">
                   <div
                     className="h-2 rounded-full bg-[#3869FA]"
                     style={{ width: '45%' }}
@@ -318,10 +274,10 @@ export default function AdminDashboard() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">메모리 사용량</span>
+                  <span className="text-gray-600">메모리 사용량</span>
                   <span>62%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-800">
+                <div className="h-2 w-full rounded-full bg-gray-100">
                   <div
                     className="h-2 rounded-full bg-[#E53333]"
                     style={{ width: '62%' }}
@@ -330,20 +286,20 @@ export default function AdminDashboard() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">스토리지</span>
+                  <span className="text-gray-600">스토리지</span>
                   <span>28%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-800">
+                <div className="h-2 w-full rounded-full bg-gray-100">
                   <div
                     className="h-2 rounded-full bg-green-500"
                     style={{ width: '28%' }}
                   />
                 </div>
               </div>
-              <div className="mt-8 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+              <div className="mt-8 p-4 rounded-lg bg-gray-50 border">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium text-gray-800">
                     모든 시스템 정상 가동 중
                   </span>
                 </div>

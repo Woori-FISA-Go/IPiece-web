@@ -85,6 +85,10 @@ export default function DividendPage() {
   const fetchDividends = async () => {
     try {
       const response = await fetch('/v1/admin/dividends');
+      if (!response.ok) {
+        setDividends(MOCK_DIVIDENDS);
+        return;
+      }
       const data = await response.json();
       setDividends((data.items as Dividend[] | undefined) || MOCK_DIVIDENDS);
     } catch (error) {
