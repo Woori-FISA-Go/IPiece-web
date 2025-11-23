@@ -15,9 +15,9 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: '대시보드', href: '/admin', icon: LayoutDashboard },
   { name: '공모 관리', href: '/admin/offering', icon: Megaphone },
-  { name: '배당 관리', href: '/admin/dividends', icon: PieChart },
-  { name: '모니터링', href: '/admin/monitoring', icon: Activity },
+  { name: '배당 관리', href: '/admin/dividend', icon: PieChart },
   { name: '블록체인', href: '/admin/blockchain', icon: Boxes },
+  { name: '모니터링', href: '/admin/monitoring', icon: Activity },
 ];
 
 export function AdminSidebar() {
