@@ -1,45 +1,82 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Settings } from "lucide-react"
+import Image from "next/image"
 import UserProfileCard from "@/components/mypage/UserProfileCard"
 import PortfolioPieChart from "@/components/mypage/PortfolioPieChart"
 import AssetTable from "@/components/mypage/AssetTable"
-import Image from "next/image"
-import myHomeEmptyState from "@/assets/images/my-home-empty-state.png"
-import profilePicture from "@/assets/images/profile-picture.png"
+import OfferingParticipationTable from "@/components/mypage/OfferingParticipationTable"
+import type { MyHomeResponse } from "@/components/mypage/types"
+import walletIcon from "@/assets/images/wallet_icon.svg"
+import { Button } from "@/components/ui/button"
 
 interface MyPortfolioProps {
-  hasAssets?: boolean
+  data?: MyHomeResponse | null
+  isLoading?: boolean
+  error?: string | null
+  noAccountUser?: string | null
+  currentPage: number
+  pageSize: number
+  onChangePage?: (page: number) => void
+  offeringPage: number
+  offeringPageSize: number
+  onChangeOfferingPage?: (page: number) => void
 }
 
-export default function MyPortfolio({ hasAssets = true }: MyPortfolioProps) {
-  if (!hasAssets) {
+export default function MyPortfolio({
+  data,
+  isLoading,
+  error,
+  currentPage,
+  pageSize,
+  onChangePage,
+  offeringPage,
+  offeringPageSize,
+  onChangeOfferingPage,
+  noAccountUser,
+}: MyPortfolioProps) {
+  if (error) {
     return (
-      <>
-        {/* Top Section: Profile Card and Pie Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <UserProfileCard hasAssets={false} />
-          <PortfolioPieChart hasAssets={false} />
-        </div>
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        {error}
+      </div>
+    )
+  }
 
-        {/* Bottom Section: Asset Table */}
-        <AssetTable hasAssets={false} />
-      </>
+  if (noAccountUser) {
+    const displayName = noAccountUser || "회원"
+    return (
+      <div className="flex flex-col items-center justify-center gap-6 rounded-lg border border-gray-200 bg-white px-6 py-12 text-center">
+        <Image src={walletIcon} alt="가상계좌 생성 필요" width={56} height={56} />
+        <p className="text-sm text-gray-700">
+          <span className="font-semibold text-gray-900">{displayName}</span>님, 가상 계좌를 생성하고 거래를 시작해보세요.
+        </p>
+        <Button className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]">가상계좌 생성하기</Button>
+      </div>
     )
   }
 
   return (
-    <>
-      {/* Top Section: Profile Card and Pie Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <UserProfileCard />
-        <PortfolioPieChart />
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <UserProfileCard data={data} isLoading={isLoading} />
+        <PortfolioPieChart ratios={data?.portfolio_ratio} isLoading={isLoading} />
       </div>
-
-      {/* Bottom Section: Asset Table */}
-      <AssetTable />
-    </>
+      <AssetTable
+        assets={data?.asset_list ?? []}
+        totalCount={data?.holding_count ?? 0}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onChangePage}
+        isLoading={isLoading}
+      />
+      <OfferingParticipationTable
+        items={data?.offering_list ?? []}
+        totalCount={data?.offering_total_count ?? data?.offering_list?.length ?? 0}
+        currentPage={offeringPage}
+        pageSize={offeringPageSize}
+        onPageChange={onChangeOfferingPage}
+        isLoading={isLoading}
+      />
+    </div>
   )
 }
