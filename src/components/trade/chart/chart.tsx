@@ -18,7 +18,28 @@ import { apiFetch } from '@/lib/api-client';
 
 type Period = '1D' | '1W' | '1M';
 const PERIOD_OPTIONS: Period[] = ['1D', '1W', '1M'];
+const DEFAULT_PERIOD: Period = '1D';
 type ChartInterval = '1d' | '1w' | '1m';
+
+const formatTimestampLabel = (timestamp: string, period: Period) => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  if (period === '1D') {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${month}/${day}`;
+};
+
+export type TradeTickMessage = {
+  productId: number;
+  tradePrice: number;
+  tradeQuantity: number;
+  matchTime: string;
+};
 
 type ChartApiResponse = {
   product_id: number;
@@ -31,20 +52,23 @@ type ChartApiResponse = {
 };
 
 interface HoverPoint {
-  candle: Candle;
+  candle: ChartCandle;
   x: number;
   y: number;
 }
 
+type ChartCandle = Candle & { timestamp: string };
+
 interface TradingChartProps {
   productId?: number | string;
+  liveTick?: TradeTickMessage | null;
 }
 
-export function TradingChart({ productId }: TradingChartProps) {
-  const [isClient, setIsClient] = useState(false);
-  const [period, setPeriod] = useState<Period>('1W');
-  const [candles, setCandles] = useState<Candle[]>([]);
+export function TradingChart({ productId, liveTick }: TradingChartProps) {
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
+  const [candles, setCandles] = useState<ChartCandle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
@@ -61,13 +85,17 @@ export function TradingChart({ productId }: TradingChartProps) {
     accumulated: 0,
   });
 
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+
   const visibleData = candles;
 
   const height = 320;
-  const padding = { top: 68, right: 28, bottom: 88, left: 40 };
+  const padding = { top: 68, right: 72, bottom: 88, left: 40 };
   const defaultContainerWidth = 620;
   const [containerWidth, setContainerWidth] = useState(defaultContainerWidth);
   const pointSpacing = 24;
+  const MAX_CANDLES = 400;
   const baseCanvasWidth = Math.max(
     containerWidth,
     padding.left +
@@ -83,8 +111,10 @@ export function TradingChart({ productId }: TradingChartProps) {
   const gradientId = useId();
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    setPeriod(DEFAULT_PERIOD);
+  }, [productId]);
+
+  const displayPeriod = period;
 
   useLayoutEffect(() => {
     const element = chartScrollRef.current;
@@ -150,88 +180,155 @@ export function TradingChart({ productId }: TradingChartProps) {
     };
   }, [chartBaseline, visibleData, xScale, yScale]);
 
-  const yTicks = useMemo(() => {
-    if (!hasData) return [0];
-    return [minPrice, (minPrice + maxPrice) / 2, maxPrice];
-  }, [hasData, minPrice, maxPrice]);
-
   const axisLabels = useMemo(() => {
     if (visibleData.length === 0) return [];
     const count = Math.min(5, visibleData.length);
     if (count === 1) {
-      return [{ label: visibleData[0].t, index: 0 }];
+      return [
+        {
+          label: formatTimestampLabel(
+            visibleData[0].timestamp,
+            displayPeriod,
+          ),
+          index: 0,
+        },
+      ];
     }
     const step = (visibleData.length - 1) / (count - 1);
     return Array.from({ length: count }, (_, i) => {
       const idx = Math.round(i * step);
+      const candle = visibleData[idx];
       return {
-        label: visibleData[idx]?.t ?? '',
+        label: candle
+          ? formatTimestampLabel(candle.timestamp, displayPeriod)
+          : '',
         index: idx,
       };
     });
-  }, [visibleData]);
+  }, [visibleData, displayPeriod]);
 
-  const mapPointLabel = useCallback(
-    (timestamp: string) => {
-      const date = new Date(timestamp);
-      if (Number.isNaN(date.getTime())) return timestamp;
-      if (period === '1D') {
-        return `${date.getHours().toString().padStart(2, '0')}:${date
-          .getMinutes()
-          .toString()
-          .padStart(2, '0')}`;
-      }
-      return `${date.getMonth() + 1}/${date.getDate()}`;
-    },
-    [period],
-  );
+  const yTicks = useMemo(() => {
+    if (!hasData) return [0];
+    const floorHundred = (value: number) => Math.floor(value / 100) * 100;
+    const ceilHundred = (value: number) => Math.ceil(value / 100) * 100;
+    const roundHundred = (value: number) => Math.round(value / 100) * 100;
 
-  useEffect(() => {
-    let cancelled = false;
+    let roundedMin = floorHundred(minPrice);
+    let roundedMax = ceilHundred(maxPrice);
+    if (roundedMax === roundedMin) {
+      roundedMax = roundedMin + 100;
+    }
+    const middle = roundHundred((roundedMin + roundedMax) / 2);
+    return [roundedMin, middle, roundedMax];
+  }, [hasData, minPrice, maxPrice]);
 
-    const fetchChart = async () => {
+  const fetchChart = useCallback(
+    async ({ cursor, append }: { cursor?: string | null; append?: boolean } = {}) => {
       if (!productId) {
         setCandles([]);
         return;
       }
-      setIsLoading(true);
-      setErrorMessage(null);
+      if (append && !cursor) return;
+      append ? setIsFetchingMore(true) : setIsLoading(true);
+      if (!append) setErrorMessage(null);
       try {
         const intervalParam = period.toLowerCase() as ChartInterval;
+        const params = new URLSearchParams({ interval: intervalParam });
+        if (cursor) params.set('cursor', cursor);
         const res = await apiFetch(
-          `/v1/market/${productId}/chart?interval=${intervalParam}`,
+          `/v1/market/${productId}/chart?${params.toString()}`,
         );
         if (!res.ok) {
           throw new Error(`Failed chart fetch: ${res.status}`);
         }
         const payload = (await res.json()) as ChartApiResponse;
-        const mapped = (payload.points ?? []).map((point) => ({
-          t: mapPointLabel(point.ts),
+        const mapped: ChartCandle[] = (payload.points ?? []).map((point) => ({
+          timestamp: point.ts,
           o: point.price,
           h: point.price,
           l: point.price,
           c: point.price,
           v: point.volume ?? 0,
         }));
-        if (!cancelled) {
-          setCandles(mapped);
-        }
+        setNextCursor(payload.next_cursor ?? null);
+        setHasMore(Boolean(payload.has_more));
+        const scroller = chartScrollRef.current;
+        const prevScrollWidth = scroller?.scrollWidth ?? 0;
+        setCandles((prev) => {
+          if (append) {
+            const existing = new Set(prev.map((candle) => candle.timestamp));
+            const filtered = mapped.filter(
+              (candle) => !existing.has(candle.timestamp),
+            );
+            if (!filtered.length) return prev;
+            const nextCandles = [...filtered, ...prev].slice(-MAX_CANDLES);
+            if (scroller) {
+              requestAnimationFrame(() => {
+                const current = chartScrollRef.current;
+                if (!current) return;
+                const newScrollWidth = current.scrollWidth;
+                current.scrollLeft += newScrollWidth - prevScrollWidth;
+              });
+            }
+            return nextCandles;
+          }
+          return mapped.slice(-MAX_CANDLES);
+        });
       } catch (err) {
         console.error('Failed to fetch chart data', err);
-        if (!cancelled) {
+        if (!append) {
           setErrorMessage('차트를 불러오지 못했습니다.');
           setCandles([]);
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        append ? setIsFetchingMore(false) : setIsLoading(false);
+      }
+    },
+    [period, productId],
+  );
+
+  useEffect(() => {
+    setCandles([]);
+    setNextCursor(null);
+    setHasMore(false);
+    fetchChart();
+  }, [fetchChart]);
+
+  useEffect(() => {
+    const scroller = chartScrollRef.current;
+    if (!scroller) return;
+    const handleScroll = () => {
+      if (!hasMore || isFetchingMore || !nextCursor) return;
+      if (scroller.scrollLeft <= 24) {
+        fetchChart({ cursor: nextCursor, append: true });
       }
     };
+    scroller.addEventListener('scroll', handleScroll);
+    return () => scroller.removeEventListener('scroll', handleScroll);
+  }, [fetchChart, hasMore, isFetchingMore, nextCursor]);
 
-    fetchChart();
-    return () => {
-      cancelled = true;
-    };
-  }, [mapPointLabel, period, productId]);
+  useEffect(() => {
+    if (!liveTick) return;
+    const numericProduct = Number(productId);
+    if (
+      Number.isFinite(numericProduct) &&
+      liveTick.productId !== numericProduct
+    )
+      return;
+    if (period !== '1D') return;
+    setCandles((prev) => {
+      const timestamp = liveTick.matchTime;
+      const candle: ChartCandle = {
+        timestamp,
+        o: liveTick.tradePrice,
+        h: liveTick.tradePrice,
+        l: liveTick.tradePrice,
+        c: liveTick.tradePrice,
+        v: liveTick.tradeQuantity,
+      };
+      return [...prev, candle].slice(-MAX_CANDLES);
+    });
+  }, [liveTick, period, productId]);
 
   const tooltipStyle = useMemo(() => {
     if (!hoveredPoint) return null;
@@ -399,7 +496,7 @@ export function TradingChart({ productId }: TradingChartProps) {
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                  period === p
+                  displayPeriod === p
                     ? 'bg-[#EAECF0] text-black font-medium'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
@@ -415,17 +512,16 @@ export function TradingChart({ productId }: TradingChartProps) {
           className="relative -mx-4 flex flex-1 select-none items-center overflow-x-auto overflow-y-hidden px-2 py-2 pb-6"
           style={scrollStyle}
         >
-          {isClient ? (
-            <div
-              ref={chartAreaRef}
-              className="relative"
-              style={{ height, width: baseCanvasWidth }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerLeave}
-              onPointerCancel={handlePointerLeave}
-            >
+          <div
+            ref={chartAreaRef}
+            className="relative"
+            style={{ height, width: baseCanvasWidth }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onPointerCancel={handlePointerLeave}
+          >
               <svg
                 width={baseCanvasWidth}
                 height={height}
@@ -440,8 +536,8 @@ export function TradingChart({ productId }: TradingChartProps) {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor="#1A4DE5" stopOpacity="0.68" />
-                    <stop offset="100%" stopColor="#1A4DE5" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#2563EB" stopOpacity="0.68" />
+                  <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 {yTicks.map((tick) => {
@@ -477,18 +573,18 @@ export function TradingChart({ productId }: TradingChartProps) {
                     <path
                       d={linePath}
                       fill="none"
-                      stroke="#1A4DE5"
+                      stroke="#2563EB"
                       strokeWidth={1.25}
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
                     {visibleData.map((candle, index) => (
                       <circle
-                        key={`point-${candle.t}-${index}`}
+                        key={`point-${candle.timestamp}-${index}`}
                         cx={xScale(index)}
                         cy={yScale(candle.c)}
                         r={4}
-                        fill="#1A4DE5"
+                        fill="#2563EB"
                         stroke="#ffffff"
                         strokeWidth={1}
                       />
@@ -517,7 +613,7 @@ export function TradingChart({ productId }: TradingChartProps) {
                       top: `${hoveredPoint.y - 5}px`,
                       width: '10px',
                       height: '10px',
-                      backgroundColor: '#1A4DE5',
+                      backgroundColor: '#2563EB',
                       border: '1.25px solid #ffffff',
                       borderRadius: '9999px',
                       pointerEvents: 'none',
@@ -537,10 +633,15 @@ export function TradingChart({ productId }: TradingChartProps) {
                   />
                   {tooltipStyle && (
                     <div
-                      className="absolute pointer-events-none rounded-lg bg-[#1A4DE5] px-3 py-2 text-xs text-white shadow-lg"
+                      className="absolute pointer-events-none rounded-lg bg-[#2563EB] px-3 py-2 text-xs text-white shadow-lg"
                       style={tooltipStyle}
                     >
-                      <div className="font-medium">{hoveredPoint.candle.t}</div>
+                      <div className="font-medium">
+                        {formatTimestampLabel(
+                          hoveredPoint.candle.timestamp,
+                          displayPeriod,
+                        )}
+                      </div>
                       <div>거래량: {hoveredPoint.candle.v}</div>
                       <div className="font-semibold">
                         {hoveredPoint.candle.c.toLocaleString('ko-KR')} ₩
@@ -570,11 +671,6 @@ export function TradingChart({ productId }: TradingChartProps) {
                 </div>
               )}
             </div>
-          ) : (
-            <div className="flex h-[320px] w-full items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-              차트 준비 중...
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

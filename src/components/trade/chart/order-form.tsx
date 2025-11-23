@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +14,7 @@ interface OrderFormProps {
   currentPrice: number;
   assetSummary: AssetSummary | null;
   productId?: number | string;
+  pendingRefreshToken?: number;
 }
 
 export type AssetSummary = {
@@ -73,7 +74,7 @@ type PendingOrderPayload = {
   placed_at?: string;
 };
 
-export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormProps) {
+export function OrderForm({ currentPrice, assetSummary, productId, pendingRefreshToken = 0 }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
   const [price, setPrice] = useState(currentPrice);
   const [priceInput, setPriceInput] = useState(() => String(currentPrice ?? 0));
@@ -119,43 +120,43 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
     setPriceInput(String(currentPrice ?? 0));
   }, [currentPrice]);
 
-  useEffect(() => {
-    const fetchPendingOrders = async () => {
-      const numericProductId = Number(productId);
-      if (!Number.isFinite(numericProductId)) return;
+  const fetchPendingOrders = useCallback(async () => {
+    const numericProductId = Number(productId);
+    if (!Number.isFinite(numericProductId)) return;
 
-      try {
-        const res = await apiFetch(
-          `/v1/market/${numericProductId}/orders/pending?page=1`,
-        );
-        if (!res.ok) {
-          console.warn(`Failed to load pending orders: ${res.status}`);
-          return;
-        }
-        const data = (await res.json()) as PendingOrderResponse;
-        const entries = data.items ?? data.content ?? data.orders ?? [];
-        const normalized = entries.map((order) => {
-          const price = order.price ?? order.order_price ?? 0;
-          const quantity = order.quantity ?? order.order_quantity ?? 0;
-          const timestamp = order.placed_at ?? order.created_at ?? '';
-          const sideValue =
-            order.side?.toLowerCase() ?? order.order_type?.toLowerCase() ?? 'buy';
-          return {
-            id: order.order_id,
-            side: sideValue === 'sell' ? 'sell' : 'buy',
-            price,
-            quantity,
-            createdAt: timestamp ? Date.parse(timestamp) || Date.now() : Date.now(),
-          } satisfies PendingOrder;
-        });
-        setPendingOrders(normalized);
-      } catch (error) {
-        console.error('Failed to fetch pending orders', error);
+    try {
+      const res = await apiFetch(
+        `/v1/market/${numericProductId}/orders/pending?page=1`,
+      );
+      if (!res.ok) {
+        console.warn(`Failed to load pending orders: ${res.status}`);
+        return;
       }
-    };
-
-    fetchPendingOrders();
+      const data = (await res.json()) as PendingOrderResponse;
+      const entries = data.items ?? data.content ?? data.orders ?? [];
+      const normalized = entries.map((order) => {
+        const price = order.price ?? order.order_price ?? 0;
+        const quantity = order.quantity ?? order.order_quantity ?? 0;
+        const timestamp = order.placed_at ?? order.created_at ?? '';
+        const sideValue =
+          order.side?.toLowerCase() ?? order.order_type?.toLowerCase() ?? 'buy';
+        return {
+          id: order.order_id,
+          side: sideValue === 'sell' ? 'sell' : 'buy',
+          price,
+          quantity,
+          createdAt: timestamp ? Date.parse(timestamp) || Date.now() : Date.now(),
+        } satisfies PendingOrder;
+      });
+      setPendingOrders(normalized);
+    } catch (error) {
+      console.error('Failed to fetch pending orders', error);
+    }
   }, [productId]);
+
+  useEffect(() => {
+    fetchPendingOrders();
+  }, [fetchPendingOrders, pendingRefreshToken]);
 
   const handleSubmit = async () => {
     if (activeTab === 'pending' || isSubmitting) return;
@@ -212,17 +213,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
         return;
       }
 
-      const data = (await res.json()) as BuyOrderResponse;
-      const createdAtTs = data.created_at ? Date.parse(data.created_at) : Date.now();
-      const newOrder: PendingOrder = {
-        id: data.order_id ?? `${Date.now()}`,
-        side: (data.side as PendingOrder['side']) ?? activeTab,
-        price: data.order_price ?? normalizedPrice,
-        quantity: data.order_quantity ?? normalizedQuantity,
-        createdAt: Number.isNaN(createdAtTs) ? Date.now() : createdAtTs,
-      };
-
-      setPendingOrders((prev) => [newOrder, ...prev]);
+      await fetchPendingOrders();
       setPrevTab(activeTab);
       setActiveTab('pending');
     } catch (error) {
@@ -289,7 +280,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
         };
       case 'sell':
         return {
-          accent: '#2675EB',
+          accent: '#2563EB',
           buttonLabel: '판매하기',
         };
       case 'pending':
@@ -363,7 +354,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                 activeTab === 'buy'
                   ? 'border-[#E94651]'
                   : activeTab === 'sell'
-                    ? 'border-[#2675EB]'
+                    ? 'border-[#2563EB]'
                     : activeTab === 'pending'
                       ? 'border-[#16A34A]'
                       : 'border-[#E5E7EB]'
@@ -392,7 +383,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                 tabRefs.current.sell = el;
               }}
               className={`relative z-10 flex flex-1 items-center justify-center rounded-lg py-[5px] leading-none transition-colors ${
-                activeTab === 'sell' ? 'text-[#2675EB]' : 'text-[#111827]'
+                activeTab === 'sell' ? 'text-[#2563EB]' : 'text-[#111827]'
               }`}
             >
               판매
@@ -529,7 +520,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                           className={`text-sm font-semibold ${
                             order.side === 'buy'
                               ? 'text-[#E94651]'
-                              : 'text-[#2675EB]'
+                              : 'text-[#2563EB]'
                           }`}
                         >
                           {order.side === 'buy' ? '매수' : '매도'} 주문
@@ -622,7 +613,7 @@ export function OrderForm({ currentPrice, assetSummary, productId }: OrderFormPr
                       assetSummary.totalProfitAmount > 0
                         ? 'text-[#E53333]'
                         : assetSummary.totalProfitAmount < 0
-                          ? 'text-[#1D4ED8]'
+                          ? 'text-[#2563EB]'
                           : 'text-[#6B7280]'
                     }`}
                   >

@@ -114,13 +114,35 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [hasMore, fetchNextPage]);
 
-  const handleLikeToggle = (id: string) => {
-    setItems((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, liked: !item.liked } : item,
-      ),
-    );
-  };
+  const handleLikeToggle = useCallback(
+    async (id: string) => {
+      const currentItem = items.find((item) => item.id === id);
+      const previousLiked = currentItem?.liked ?? false;
+      setItems((prevItems) =>
+        prevItems.map((item) =>
+          item.id === id ? { ...item, liked: !previousLiked } : item,
+        ),
+      );
+
+      try {
+        const res = await apiFetch(`/v1/products/${id}/favorite`, {
+          method: previousLiked ? 'DELETE' : 'POST',
+          headers: { accept: '*/*' },
+        });
+        if (!res.ok) {
+          throw new Error(`Favorite toggle failed: ${res.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to toggle favorite', error);
+        setItems((prevItems) =>
+          prevItems.map((item) =>
+            item.id === id ? { ...item, liked: previousLiked } : item,
+          ),
+        );
+      }
+    },
+    [items],
+  );
 
   const totalItems = totalCount ?? items.length;
 
