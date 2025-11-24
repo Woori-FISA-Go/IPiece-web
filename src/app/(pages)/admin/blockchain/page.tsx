@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -26,6 +26,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api-client';
 
 interface TokenInfo {
   contract_address: string;
@@ -50,12 +51,35 @@ interface Transaction {
   gas_used: string;
 }
 
+type ContractsResponse = {
+  krwt?: {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    totalSupply: string;
+    owner: string;
+  };
+  tokenFactory?: {
+    address: string;
+    tokensCreated: number;
+    owner: string;
+  };
+  tokens?: Array<{
+    projectId: string;
+    address: string;
+    dividendAddress: string;
+  }>;
+};
+
 export default function BlockchainPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [tokenAddress, setTokenAddress] = useState('');
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [txHash, setTxHash] = useState('');
   const [txInfo, setTxInfo] = useState<Transaction | null>(null);
+  const [contracts, setContracts] = useState<ContractsResponse | null>(null);
+  const [contractsLoading, setContractsLoading] = useState(false);
 
   // 토큰 생성
   const [createTokenData, setCreateTokenData] = useState({
@@ -95,6 +119,25 @@ export default function BlockchainPage() {
     user_id: '',
     wallet_address: '',
   });
+
+  useEffect(() => {
+    fetchContracts();
+  }, []);
+
+  const fetchContracts = async () => {
+    try {
+      setContractsLoading(true);
+      const res = await apiFetch('/v1/admin/blockchain/contracts');
+      if (!res.ok) throw new Error(`contracts ${res.status}`);
+      const data = (await res.json()) as ContractsResponse;
+      setContracts(data);
+    } catch (error) {
+      console.error('Failed to fetch contracts', error);
+      setContracts(null);
+    } finally {
+      setContractsLoading(false);
+    }
+  };
 
   const handleCreateToken = async () => {
     try {
@@ -434,13 +477,19 @@ export default function BlockchainPage() {
                       <Coins className="h-5 w-5 text-blue-500" />
                     </div>
                     <div>
-                      <p className="font-semibold">KRWT (Korean Won Token)</p>
+                      <p className="font-semibold">
+                        {contracts?.krwt?.name ?? 'KRWT (Korean Won Token)'}
+                      </p>
                       <p className="text-sm text-muted-foreground font-mono">
-                        0xa8A1684857bd619ddfcF3e0e26470E8638F1eB4b
+                        {contracts?.krwt?.address ?? '주소 불러오는 중'}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        총발행: {contracts?.krwt?.totalSupply ?? '-'} / 소유자:{' '}
+                        {contracts?.krwt?.owner ?? '-'}
                       </p>
                     </div>
                   </div>
-                  <Badge>운영 중</Badge>
+                  <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
                 </div>
 
                 <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -451,12 +500,41 @@ export default function BlockchainPage() {
                     <div>
                       <p className="font-semibold">Token Factory</p>
                       <p className="text-sm text-muted-foreground font-mono">
-                        0x3b4e1bc9c0d45ad68d2cd077e0f1ff7d8e3c5f9a
+                        {contracts?.tokenFactory?.address ?? '주소 불러오는 중'}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        생성 토큰: {contracts?.tokenFactory?.tokensCreated ?? 0} / 소유자:{' '}
+                        {contracts?.tokenFactory?.owner ?? '-'}
                       </p>
                     </div>
                   </div>
-                  <Badge>운영 중</Badge>
+                  <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
                 </div>
+
+                {contracts?.tokens?.map((token) => (
+                  <div
+                    key={token.projectId}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
+                    <div className="space-y-1">
+                      <p className="font-semibold">프로젝트 토큰</p>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        프로젝트 ID: {token.projectId}
+                      </p>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        토큰: {token.address}
+                      </p>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        배당 컨트랙트: {token.dividendAddress}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">배포됨</Badge>
+                  </div>
+                ))}
+
+                {!contractsLoading && !contracts?.tokens?.length && (
+                  <p className="text-sm text-muted-foreground">등록된 토큰이 없습니다.</p>
+                )}
               </div>
             </CardContent>
           </Card>
