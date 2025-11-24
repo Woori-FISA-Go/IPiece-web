@@ -1,8 +1,8 @@
-name: Frontend CI/CD (ECR, Next.js)
+﻿name: Frontend DEV CI/CD
 
 on:
   push:
-    branches: [ "feat/cicd-test" ]
+    branches: [ "develop" ] # 개발 브랜치에 푸시될 때만 동작
   workflow_dispatch:
 
 env:
@@ -12,34 +12,27 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
     steps:
-      # 1) 현재 레포 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) pnpm 설치
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
-      # 3) Node.js 설정
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
 
-      # 4) 의존성 설치
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 5) 빌드
       - name: Run build
         run: pnpm build
 
-      # 6) AWS 권한 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -47,64 +40,52 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 7) ECR 로그인
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 8) Docker 빌드 & 푸시
       - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          # Dev용 이미지는 latest를 뺏지 않고 'dev-latest'라는 별도 태그를 씁니다 (안전장치)
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
 
-      # 9) GitOps 자동 업데이트 (믿고 쓰는 Credential Helper 버전)
-      - name: Update manifests repo with new frontend image tag
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Update manifests repo (Dev Overlay)
         env:
           GIT_TOKEN: ${{ secrets.MANIFESTS_REPO_TOKEN }}
           IMAGE_TAG: ${{ github.sha }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
-          # 1. 토큰 공백 제거
           TRIMMED_TOKEN=$(echo "$GIT_TOKEN" | tr -d '\n' | tr -d '\r')
-
-          if [ -z "$TRIMMED_TOKEN" ]; then
-            echo "❌ Error: GIT_TOKEN is empty after trimming!"
-            exit 1
-          fi
-
           git config --global user.email "ci@ipiece.local"
           git config --global user.name "ipiece-ci"
-
-          # 2. GitHub 인증 설정 (Credential Helper 방식)
           git config --global credential.helper store
           echo "https://x-access-token:${TRIMMED_TOKEN}@github.com" > ~/.git-credentials
 
-          # 3. GitOps repo clone
-          git clone https://github.com/Woori-FISA-Go/ipiece-manifests.git
+          # 매니페스트 레포 Clone (develop 브랜치)
+          git clone -b develop https://github.com/Woori-FISA-Go/ipiece-manifests.git
+          
+          # ★ 핵심: Dev 오버레이 폴더로 이동
+          cd ipiece-manifests/apps/frontend/overlays/dev
 
-          cd ipiece-manifests/frontend
+          # Kustomize로 이미지 태그 변경
+          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-          echo "Before change:"
-          grep "image:" deployment.yaml || true
-
-          # 4. 이미지 태그 자동 교체
-          sed -i "s|image: .*/$ECR_REPOSITORY:.*|image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|" deployment.yaml
-
-          echo "After change:"
-          grep "image:" deployment.yaml || true
-
-          # 5. 변경사항 커밋 & 푸시
+          # 커밋 & 푸시
+          cd ../../../..
           if git diff --quiet; then
             echo "⭕ No changes to commit."
           else
             git add .
-            git commit -m "chore: update frontend image to ${IMAGE_TAG}"
-            git push
+            git commit -m "chore(dev): update frontend image to ${IMAGE_TAG}"
+            git push origin develop
           fi
