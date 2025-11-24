@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import InterestList from "@/app/(pages)/mypage/InterestList"
 import MyPortfolio from "@/app/(pages)/mypage/MyPortfolio"
@@ -19,6 +19,7 @@ export default function MyPage() {
   const [activeTab, setActiveTab] = useState<string>(tabs[0])
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
   const tabsRef = useRef<(HTMLButtonElement | null)[]>([])
+  const offeringCursorRef = useRef<number | null>(null)
 
   const [accountState, setAccountState] =
     useState<"noAccount" | "emptyHistory" | "hasHistory">("noAccount")
@@ -29,6 +30,16 @@ export default function MyPage() {
   const [isLoadingHome, setIsLoadingHome] = useState(false)
   const [homeError, setHomeError] = useState<string | null>(null)
   const [noAccountUser, setNoAccountUser] = useState<string | null>(null)
+  const offeringNextCursor = useMemo(() => {
+    if (!myHomeData) return null
+    if (typeof myHomeData.offeringNextPage === "number") {
+      return myHomeData.offeringNextPage
+    }
+    if (typeof myHomeData.offering_next_page === "number") {
+      return myHomeData.offering_next_page
+    }
+    return null
+  }, [myHomeData])
 
   useEffect(() => {
     const activeTabIndex = tabs.indexOf(activeTab)
@@ -39,11 +50,22 @@ export default function MyPage() {
   }, [activeTab])
 
   const fetchMyHome = useCallback(
-    async (assetPageValue: number, offeringPageValue: number) => {
+    async (
+      assetPageValue: number,
+      offeringPageValue: number,
+      offeringNextPageValue?: number | null,
+    ) => {
       setIsLoadingHome(true)
       setHomeError(null)
       try {
-        const res = await apiFetch(`/v1/mypage/myhome?page=${assetPageValue}&offeringPage=${offeringPageValue}`)
+        const nextPageParam =
+          typeof offeringNextPageValue === "number" ? offeringNextPageValue : offeringPageValue
+        const params = new URLSearchParams({
+          page: String(assetPageValue),
+          offeringPage: String(offeringPageValue),
+          offeringNextPage: String(nextPageParam),
+        })
+        const res = await apiFetch(`/v1/mypage/myhome?${params.toString()}`)
         if (!res.ok) {
           const clone = res.clone()
           let message: string | undefined
@@ -77,8 +99,21 @@ export default function MyPage() {
   )
 
   useEffect(() => {
-    fetchMyHome(assetPage, offeringPage)
+    const cursorValue = offeringCursorRef.current
+    offeringCursorRef.current = null
+    fetchMyHome(assetPage, offeringPage, cursorValue ?? undefined)
   }, [assetPage, offeringPage, fetchMyHome])
+
+  const handleOfferingPageChange = useCallback(
+    (page: number) => {
+      if (page === offeringPage) return
+      const isForward = page > offeringPage
+      offeringCursorRef.current =
+        isForward && typeof offeringNextCursor === "number" ? offeringNextCursor : null
+      setOfferingPage(page)
+    },
+    [offeringPage, offeringNextCursor],
+  )
 
   return (
     <main className="flex-1 bg-white">
@@ -119,7 +154,7 @@ export default function MyPage() {
             onChangePage={setAssetPage}
             offeringPage={offeringPage}
             offeringPageSize={OFFERING_PAGE_SIZE}
-            onChangeOfferingPage={setOfferingPage}
+            onChangeOfferingPage={handleOfferingPageChange}
           />
         )}
         {activeTab === TAB_ACCOUNT && (
