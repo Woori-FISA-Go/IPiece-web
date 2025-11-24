@@ -41,9 +41,10 @@ function formatDate(value?: string) {
 function getJournalLabel(txType?: string) {
   const key = (txType ?? "").toUpperCase()
   if (key === "DEPOSIT" || key === "TRADE_SELL") return { text: "입금 완료", theme: "positive" }
-  if (key === "WITHDRAW" || key === "TRADE_BUY" || key === "OFFERING_BUY") return { text: "출금 완료", theme: "negative" }
-  if (key === "DIVIDEND") return { text: "배당금", theme: "positive" }
-  return { text: "내역", theme: "neutral" }
+  if (key === "WITHDRAW" || key === "TRADE_BUY" || key === "OFFERING_BUY")
+    return { text: "출금 완료", theme: "negative" }
+  if (key === "DIVIDEND") return { text: "배당", theme: "positive" }
+  return { text: "거래", theme: "neutral" }
 }
 
 export default function AccountDepositPanel({
@@ -111,16 +112,16 @@ export default function AccountDepositPanel({
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
         <Card className="flex flex-col items-center gap-4 border border-gray-200 px-6 py-10 text-center">
-          <Image src={walletIcon} alt="???? ??" width={56} height={56} />
+          <Image src={walletIcon} alt="가상계좌 없음" width={56} height={56} />
           <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{displayName}</span>?, ????? ???? ??? ??????.
+            <span className="font-semibold text-gray-900">{displayName}</span>님, 가상계좌를 생성하고 거래를 시작해 보세요.
           </p>
           <Button
             className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]"
             onClick={handleCreateAccount}
             disabled={isCreatingAccount}
           >
-            {isCreatingAccount ? "?? ?..." : "???? ????"}
+            {isCreatingAccount ? "생성 중..." : "가상계좌 생성하기"}
           </Button>
           {createError ? <p className="text-xs text-red-500">{createError}</p> : null}
         </Card>
@@ -140,16 +141,17 @@ export default function AccountDepositPanel({
               <span className="font-medium text-gray-900">{summary.accountNo ?? "-"}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">총 보유</span>
+              <span className="text-gray-600">보유 잔액</span>
               <span className="text-lg font-bold text-gray-900">
                 {numberFormatter.format(summary.totalBalance ?? summary.totalPrice ?? summary.balanceKrw ?? 0)}{" "}
                 <span className="text-xs font-normal text-gray-500">KRW</span>
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">거래대기</span>
+              <span className="text-gray-600">거래 대기금</span>
               <span className="text-lg font-bold text-gray-900">
-                {numberFormatter.format(summary.pendingPrice ?? 0)} <span className="text-xs font-normal text-gray-500">KRW</span>
+                {numberFormatter.format(summary.pendingPrice ?? 0)}{" "}
+                <span className="text-xs font-normal text-gray-500">KRW</span>
               </span>
             </div>
           </div>
@@ -157,7 +159,7 @@ export default function AccountDepositPanel({
 
         <div className="mb-6 flex border-b border-gray-200">
           {[
-            { key: "ALL", label: "내역" },
+            { key: "ALL", label: "전체" },
             { key: "DEPOSIT", label: "입금" },
             { key: "WITHDRAW", label: "출금" },
           ].map((tab) => (
