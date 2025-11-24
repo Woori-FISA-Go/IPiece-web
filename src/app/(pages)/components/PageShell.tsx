@@ -8,6 +8,7 @@ import { Header } from "../main/layouts/Header"
 import { Footer } from "../main/layouts/Footer"
 
 const AUTH_PATH_PREFIX = "/auth"
+const ADMIN_PATH_PREFIX = "/admin"
 
 type LayoutSpacing = {
   header: string
@@ -75,14 +76,15 @@ type PageShellProps = {
 
 export function PageShell({ children }: PageShellProps) {
   const pathname = usePathname()
-  const isAuthRoute = pathname?.startsWith(AUTH_PATH_PREFIX)
+  const isShellHiddenRoute =
+    pathname?.startsWith(AUTH_PATH_PREFIX) || pathname?.startsWith(ADMIN_PATH_PREFIX)
   const [spacing, setSpacing] = useState<LayoutSpacing>(DEFAULT_SPACING)
 
   useEffect(() => {
     setSpacing(resolveSpacing(pathname))
   }, [pathname])
 
-  if (isAuthRoute) {
+  if (isShellHiddenRoute) {
     return <>{children}</>
   }
 
