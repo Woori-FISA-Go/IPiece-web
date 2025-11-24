@@ -16,6 +16,8 @@ interface OfferingParticipationTableProps {
   pageSize: number
   onPageChange?: (page: number) => void
   isLoading?: boolean
+  hasNext?: boolean
+  nextPage?: number
 }
 
 const currencyFormatter = new Intl.NumberFormat("ko-KR")
@@ -40,13 +42,32 @@ export default function OfferingParticipationTable({
   pageSize,
   onPageChange,
   isLoading,
+  hasNext,
+  nextPage,
 }: OfferingParticipationTableProps) {
-  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / (pageSize || 1)))
+  const safePageSize = pageSize || 1
+  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / safePageSize))
+  const nextCursorPage = typeof nextPage === "number" ? nextPage : null
+  const canGoNext =
+    hasNext === true ? nextCursorPage !== null : hasNext === false ? false : currentPage < totalPages
   const hasItems = items.length > 0
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return
     onPageChange?.(page)
+  }
+
+  const handleNextPage = () => {
+    if (!canGoNext) return
+    if (hasNext === true) {
+      if (nextCursorPage === null) return
+      onPageChange?.(nextCursorPage)
+      return
+    }
+    const next = Math.min(currentPage + 1, totalPages)
+    if (next !== currentPage) {
+      onPageChange?.(next)
+    }
   }
 
   return (
@@ -148,8 +169,8 @@ export default function OfferingParticipationTable({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                onClick={handleNextPage}
+                disabled={!canGoNext}
                 className="h-8 w-8"
                 aria-label="다음 페이지"
               >

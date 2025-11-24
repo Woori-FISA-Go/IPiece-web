@@ -55,6 +55,22 @@ export default function MyPortfolio({
     )
   }
 
+  const offeringItems = data?.offering_list ?? []
+  const rawOfferingTotalCount = data?.offering_total_count ?? data?.offeringTotalCount
+  const offeringTotalCount =
+    typeof rawOfferingTotalCount === "number" ? rawOfferingTotalCount : offeringItems.length
+  const offeringHasNext =
+    typeof data?.offeringHasNext === "boolean"
+      ? data.offeringHasNext
+      : typeof data?.offering_has_next === "boolean"
+        ? data.offering_has_next
+        : undefined
+  const offeringNextPage =
+    typeof data?.offeringNextPage === "number"
+      ? data.offeringNextPage
+      : typeof data?.offering_next_page === "number"
+        ? data.offering_next_page
+        : undefined
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
@@ -70,12 +86,14 @@ export default function MyPortfolio({
         isLoading={isLoading}
       />
       <OfferingParticipationTable
-        items={data?.offering_list ?? []}
-        totalCount={data?.offering_total_count ?? data?.offering_list?.length ?? 0}
+        items={offeringItems}
+        totalCount={offeringTotalCount}
         currentPage={offeringPage}
         pageSize={offeringPageSize}
         onPageChange={onChangeOfferingPage}
         isLoading={isLoading}
+        hasNext={offeringHasNext}
+        nextPage={offeringNextPage}
       />
     </div>
   )

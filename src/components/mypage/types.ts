@@ -45,7 +45,12 @@ export interface MyHomeResponse {
   portfolio_ratio: PortfolioRatioItem[]
   asset_list: AssetListItem[]
   offering_list: OfferingParticipationItem[]
-  offering_total_count?: number
+  offering_total_count?: number | null
+  offeringTotalCount?: number | null
+  offering_has_next?: boolean | null
+  offeringHasNext?: boolean | null
+  offering_next_page?: number | null
+  offeringNextPage?: number | null
 }
 
 export interface AccountHistoryItem {
