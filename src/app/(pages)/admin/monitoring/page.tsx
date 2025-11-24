@@ -679,7 +679,7 @@ export default function MonitoringPage() {
                         </p>
                       </div>
                       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                        <Users className="w-6 h-6 text-purple-600" />
+                        <Server className="w-6 h-6 text-purple-600" />
                       </div>
                     </div>
                   </CardContent>
@@ -802,7 +802,9 @@ export default function MonitoringPage() {
                                     {tx.amount !== null ? (
                                       <span className="font-semibold">
                                         {tx.amount.toLocaleString()}
-                                        <span className="text-xs text-muted-foreground ml-1">₩</span>
+                                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">
+                                          ₩
+                                        </span>
                                       </span>
                                     ) : (
                                       '-'
