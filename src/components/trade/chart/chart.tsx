@@ -244,6 +244,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
         const payload = (await res.json()) as ChartApiResponse;
         const mapped: ChartCandle[] = (payload.points ?? []).map((point) => ({
           timestamp: point.ts,
+          t: point.ts,
           o: point.price,
           h: point.price,
           l: point.price,
@@ -320,6 +321,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
       const timestamp = liveTick.matchTime;
       const candle: ChartCandle = {
         timestamp,
+        t: timestamp,
         o: liveTick.tradePrice,
         h: liveTick.tradePrice,
         l: liveTick.tradePrice,
