@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import Image from "next/image"
 import UserProfileCard from "@/components/mypage/UserProfileCard"
 import PortfolioPieChart from "@/components/mypage/PortfolioPieChart"
@@ -8,6 +9,7 @@ import OfferingParticipationTable from "@/components/mypage/OfferingParticipatio
 import type { MyHomeResponse } from "@/components/mypage/types"
 import walletIcon from "@/assets/images/wallet_icon.svg"
 import { Button } from "@/components/ui/button"
+import { useTopAssetThumbnail } from "@/app/(pages)/context/TopAssetContext"
 
 interface MyPortfolioProps {
   data?: MyHomeResponse | null
@@ -34,6 +36,19 @@ export default function MyPortfolio({
   onChangeOfferingPage,
   noAccountUser,
 }: MyPortfolioProps) {
+  const { setThumbnail } = useTopAssetThumbnail()
+
+  useEffect(() => {
+    const ratios = data?.portfolio_ratio ?? []
+    if (!ratios.length) {
+      setThumbnail(null)
+      return
+    }
+    const sorted = [...ratios].sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
+    const topThumb = sorted.find((item) => item.thumbnailImg)?.thumbnailImg ?? null
+    setThumbnail(topThumb ?? null)
+  }, [data?.portfolio_ratio, setThumbnail])
+
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">

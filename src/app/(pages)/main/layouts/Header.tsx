@@ -6,6 +6,9 @@ import { usePathname, useSearchParams } from "next/navigation"
 import Logo from "../assets/Logo.png"
 import { Button } from "../components/ui/button"
 import { ACCESS_TOKEN_KEY } from "@/lib/auth"
+import { useTopAssetThumbnail } from "@/app/(pages)/context/TopAssetContext"
+import { apiFetch } from "@/lib/api-client"
+import type { MyHomeResponse } from "@/components/mypage/types"
 
 type HeaderProps = {
   containerClassName?: string
@@ -13,7 +16,8 @@ type HeaderProps = {
 
 export function Header({ containerClassName }: HeaderProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const avatarSrc = 'https://i.pravatar.cc/28'
+  const { thumbnail, setThumbnail } = useTopAssetThumbnail()
+  const avatarSrc = thumbnail || "https://i.pravatar.cc/28"
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const tab = searchParams?.get('tab')
@@ -29,6 +33,31 @@ export function Header({ containerClassName }: HeaderProps) {
     const hasAccessToken = !!localStorage.getItem(ACCESS_TOKEN_KEY)
     setIsLoggedIn(hasAccessToken)
   }, [])
+
+  useEffect(() => {
+    if (!isLoggedIn || thumbnail) return
+    let isCancelled = false
+    const loadTopAsset = async () => {
+      try {
+        const res = await apiFetch("/v1/mypage/myhome?page=1&offeringPage=1")
+        if (!res.ok) return
+        const data = (await res.json()) as MyHomeResponse
+        const ratios = data?.portfolio_ratio ?? []
+        if (!ratios.length) return
+        const sorted = [...ratios].sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
+        const topThumb = sorted.find((item) => item.thumbnailImg)?.thumbnailImg ?? null
+        if (!isCancelled && topThumb) {
+          setThumbnail(topThumb)
+        }
+      } catch {
+        /* ignore top asset fetch failures */
+      }
+    }
+    loadTopAsset()
+    return () => {
+      isCancelled = true
+    }
+  }, [isLoggedIn, thumbnail, setThumbnail])
   const defaultSpacing = 'container mx-auto px-10 sm:px-16 lg:px-20 xl:px-24'
   const resolvedContainer = `${containerClassName ?? defaultSpacing} h-16 flex items-center justify-between`
 
