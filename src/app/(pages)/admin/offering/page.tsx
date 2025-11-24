@@ -21,13 +21,42 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const INITIAL_CONTESTS = [
+type ContestStatus = 'offering' | 'ended';
+type MarketStatus = 'active' | 'ended';
+
+type Contest = {
+  id: number;
+  product_name: string;
+  project_name: string;
+  owner: string;
+  status: ContestStatus;
+  issue_amount: number;
+  offering_amount: number;
+  current_amount: number;
+  offering_price: number;
+  start_date: string;
+  end_date: string;
+};
+
+type MarketItem = {
+  id: number;
+  product_name: string;
+  project_name: string;
+  owner: string;
+  status: MarketStatus;
+  current_price: number;
+  volume_24h: number;
+  holders: number;
+  listed_date: string;
+};
+
+const INITIAL_CONTESTS: Contest[] = [
   {
     id: 1,
     product_name: '다이노탱',
     project_name: '맹구 시즌1',
     owner: 'Masterpiece',
-    status: 'offering' as const,
+    status: 'offering',
     issue_amount: 100000000,
     offering_amount: 100000000,
     current_amount: 75000000,
@@ -40,7 +69,7 @@ const INITIAL_CONTESTS = [
     product_name: '겨울 멈무',
     project_name: '윈터 컬렉션',
     owner: 'Artist Kim',
-    status: 'ended' as const,
+    status: 'ended',
     issue_amount: 50000000,
     offering_amount: 50000000,
     current_amount: 50000000,
@@ -50,13 +79,13 @@ const INITIAL_CONTESTS = [
   },
 ];
 
-const INITIAL_MARKET = [
+const INITIAL_MARKET: MarketItem[] = [
   {
     id: 3,
     product_name: '봄날의 햇살',
     project_name: '스프링 시리즈',
     owner: 'Studio Flow',
-    status: 'active' as const,
+    status: 'active',
     current_price: 1200,
     volume_24h: 35000000,
     holders: 245,
@@ -66,8 +95,8 @@ const INITIAL_MARKET = [
 
 export default function ProductManagementPage() {
   const [activeTab, setActiveTab] = useState<'contest' | 'market'>('contest');
-  const [contests, setContests] = useState(INITIAL_CONTESTS);
-  const [marketItems, setMarketItems] = useState(INITIAL_MARKET);
+  const [contests, setContests] = useState<Contest[]>(INITIAL_CONTESTS);
+  const [marketItems, setMarketItems] = useState<MarketItem[]>(INITIAL_MARKET);
 
   const handleTransferToMarket = (contestId: number) => {
     const contest = contests.find((c) => c.id === contestId);
@@ -77,12 +106,12 @@ export default function ProductManagementPage() {
     setContests(contests.filter((c) => c.id !== contestId));
 
     // Add to market items
-    const newMarketItem = {
+    const newMarketItem: MarketItem = {
       id: contestId,
       product_name: contest.product_name,
       project_name: contest.project_name,
       owner: contest.owner,
-      status: 'active' as const,
+      status: 'active',
       current_price: contest.offering_price,
       volume_24h: 0,
       holders: 0,

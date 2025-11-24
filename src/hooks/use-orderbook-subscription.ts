@@ -127,7 +127,9 @@ export function useStompTopics({ topics, debug }: UseStompTopicsOptions) {
     })
 
     if (window.SockJS) {
-      client.webSocketFactory = () => new window.SockJS(adaptUrlForSockJS(socketUrl))
+      const SockJS = window.SockJS
+      client.webSocketFactory = () =>
+        SockJS ? new SockJS(adaptUrlForSockJS(socketUrl)) : new WebSocket(socketUrl)
     }
     if (debug) {
       client.debug = (msg: string) => console.log('[StompTopics]', msg)
@@ -168,9 +170,12 @@ export function useStompTopics({ topics, debug }: UseStompTopicsOptions) {
 
     return () => {
       subscriptions.forEach((unsubscribe) => unsubscribe())
-      client.deactivate().catch((err) => {
-        console.error('Failed to deactivate STOMP client', err)
-      })
+      const result = client.deactivate()
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        ;(result as Promise<void>).catch((err) => {
+          console.error('Failed to deactivate STOMP client', err)
+        })
+      }
     }
   }, [enabledTopics, transportReady, debug])
 }
