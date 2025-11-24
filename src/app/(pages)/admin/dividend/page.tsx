@@ -28,6 +28,7 @@ interface DividendResult {
   recipient_count: number;
   total_paid: number;
   failed_count: number;
+  payout_date?: string;
   items: Array<{
     payout_id: number;
     account_id: number;
@@ -104,21 +105,58 @@ export default function DividendPage() {
     'declarations',
   );
 
-  // 한 달 내 예정된 배당 개수
-  const upcomingDividends = dividends.filter((d) => {
-    const payoutDate = new Date(d.payout_date);
-    const today = new Date();
-    const oneMonthLater = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-    return (
-      d.status === 'SCHEDULED' &&
-      payoutDate >= today &&
-      payoutDate <= oneMonthLater
-    );
-  }).length;
+  // 한 달 범위 계산 및 필터링
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const formatRangeDate = (date: Date) =>
+    `${date.getFullYear()}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date
+      .getDate()
+      .toString()
+      .padStart(2, '0')}`;
+  const monthRangeLabel = `${formatRangeDate(monthStart)} ~ ${formatRangeDate(monthEnd)}`;
+  const isWithinMonth = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    return d >= monthStart && d <= monthEnd;
+  };
 
-  const scheduledDividends = dividends.filter(
-    (dividend) => dividend.status === 'SCHEDULED',
+  const scheduledThisMonth = dividends.filter(
+    (d) => d.status === 'SCHEDULED' && isWithinMonth(d.payout_date),
   );
+  const executedThisMonth = dividends.filter(
+    (d) =>
+      (d.status === 'EXECUTED' || d.status === 'COMPLETED') &&
+      isWithinMonth(d.payout_date),
+  );
+  const dividendsInMonthForTotal = dividends.filter(
+    (d) =>
+      (d.status === 'SCHEDULED' || d.status === 'EXECUTED' || d.status === 'COMPLETED') &&
+      isWithinMonth(d.payout_date),
+  );
+  console.log(
+    '[dividends] monthly total calc',
+    dividendsInMonthForTotal.map((d) => ({
+      id: d.id ?? d.dividend_id,
+      amount: d.total_amount,
+    })),
+  );
+  const totalAmountThisMonth = dividendsInMonthForTotal.reduce(
+    (sum, d) => sum + (d.total_amount || 0),
+    0,
+  );
+
+  const scheduledDividends = dividends
+    .filter((dividend) => dividend.status === 'SCHEDULED')
+    .sort((a, b) => {
+      const nowTime = Date.now();
+      const aTime = new Date(a.payout_date).getTime();
+      const bTime = new Date(b.payout_date).getTime();
+      const aDiff = Math.abs(aTime - nowTime);
+      const bDiff = Math.abs(bTime - nowTime);
+      return aDiff - bDiff;
+    });
 
   useEffect(() => {
     fetchDividends();
@@ -186,16 +224,24 @@ export default function DividendPage() {
         const recipientCount = data.summary?.recipient_count ?? data.recipient_count ?? 0;
         const totalPaid = data.summary?.total_paid ?? data.total_paid ?? 0;
         const failedCount = data.summary?.failed_count ?? data.failed_count ?? 0;
+        const payoutDateFromItems =
+          data.items && data.items.length > 0 ? data.items[0].payout_date : undefined;
         return {
           dividend_id: data.dividend_id ?? id,
           recipient_count: recipientCount,
           total_paid: totalPaid,
           failed_count: failedCount,
+          payout_date: payoutDateFromItems,
           items: data.items ?? [],
         } satisfies DividendResult;
       });
       const results = await Promise.all(requests);
-      setResults(results);
+      const sorted = results.sort((a, b) => {
+        const aTime = a.payout_date ? new Date(a.payout_date).getTime() : 0;
+        const bTime = b.payout_date ? new Date(b.payout_date).getTime() : 0;
+        return bTime - aTime;
+      });
+      setResults(sorted);
     } catch (error) {
       console.error('Failed to fetch payout results:', error);
       setResults([]);
@@ -258,8 +304,9 @@ export default function DividendPage() {
               <Calendar className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">30일 내 예정 배당</p>
-              <p className="text-2xl font-bold">{upcomingDividends}건</p>
+              <p className="text-sm text-gray-500">이번 달 예정 배당</p>
+              <p className="text-2xl font-bold">{scheduledThisMonth.length}건</p>
+              <p className="text-xs text-gray-400 mt-1">{monthRangeLabel}</p>
             </div>
           </div>
         </Card>
@@ -270,8 +317,9 @@ export default function DividendPage() {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">총 배당 실행</p>
-              <p className="text-2xl font-bold">{results.length}건</p>
+              <p className="text-sm text-gray-500">이번 달 실행 배당</p>
+              <p className="text-2xl font-bold">{executedThisMonth.length}건</p>
+              <p className="text-xs text-gray-400 mt-1">{monthRangeLabel}</p>
             </div>
           </div>
         </Card>
@@ -282,13 +330,11 @@ export default function DividendPage() {
               <TrendingUp className="w-6 h-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">총 배당 금액</p>
+              <p className="text-sm text-gray-500">이번 달 배당 총액</p>
               <p className="text-2xl font-bold">
-                {dividends
-                  .reduce((sum, d) => sum + d.total_amount, 0)
-                  .toLocaleString()}
-                원
+                {totalAmountThisMonth.toLocaleString()}원
               </p>
+              <p className="text-xs text-gray-400 mt-1">{monthRangeLabel}</p>
             </div>
           </div>
         </Card>
@@ -426,6 +472,9 @@ export default function DividendPage() {
                     배당 ID
                   </th>
                   <th className="text-left p-4 font-medium text-gray-700">
+                    지급일시
+                  </th>
+                  <th className="text-left p-4 font-medium text-gray-700">
                     수령자 수
                   </th>
                   <th className="text-right p-4 font-medium text-gray-700">
@@ -442,7 +491,7 @@ export default function DividendPage() {
               <tbody>
                 {results.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center text-gray-500">
+                    <td colSpan={6} className="p-12 text-center text-gray-500">
                       배당 집행 결과가 없습니다.
                     </td>
                   </tr>
@@ -458,26 +507,31 @@ export default function DividendPage() {
                     };
                     return (
                       <Fragment key={result.dividend_id}>
-                      <tr className="border-b hover:bg-gray-50">
-                        <td className="p-4">{result.dividend_id}</td>
-                        <td className="p-4">
-                          {result.recipient_count.toLocaleString()}명
-                        </td>
-                        <td className="p-4 text-right">
-                          {result.total_paid.toLocaleString()}원
-                        </td>
-                        <td className="p-4 text-right">
-                          {result.failed_count.toLocaleString()}건
-                        </td>
-                        <td className="p-4 text-center">
-                          <Button variant="outline" size="sm" onClick={toggle}>
-                            상세 보기
+                        <tr className="border-b hover:bg-gray-50">
+                          <td className="p-4">{result.dividend_id}</td>
+                          <td className="p-4">
+                            {result.payout_date
+                              ? new Date(result.payout_date).toLocaleString('ko-KR')
+                              : '-'}
+                          </td>
+                          <td className="p-4">
+                            {result.recipient_count.toLocaleString()}명
+                          </td>
+                          <td className="p-4 text-right">
+                            {result.total_paid.toLocaleString()}원
+                          </td>
+                          <td className="p-4 text-right">
+                            {result.failed_count.toLocaleString()}건
+                          </td>
+                          <td className="p-4 text-center">
+                            <Button variant="outline" size="sm" onClick={toggle}>
+                              상세 보기
                           </Button>
                           </td>
                         </tr>
                         {isExpanded && result.items.length > 0 && (
                           <tr className="border-b bg-gray-50/70">
-                            <td colSpan={5} className="p-4">
+                            <td colSpan={6} className="p-4">
                               <div className="space-y-3">
                                 {result.items.map((item) => (
                                   <div
