@@ -6,10 +6,11 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Fragment } from 'react';
 import { Plus, Calendar, TrendingUp, CheckCircle } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 
-type DividendStatus = 'SCHEDULED' | 'EXECUTED' | 'CANCELLED';
+type DividendStatus = 'SCHEDULED' | 'EXECUTED' | 'CANCELLED' | 'COMPLETED';
 
 interface Dividend {
   id: number;
@@ -24,13 +25,37 @@ interface Dividend {
 
 interface DividendResult {
   dividend_id: number;
-  executed_at: string;
-  total_recipients: number;
-  success_count: number;
-  failure_count: number;
+  recipient_count: number;
+  total_paid: number;
+  failed_count: number;
+  items: Array<{
+    payout_id: number;
+    account_id: number;
+    payout_amount: number;
+    payout_status: string;
+    payout_date: string;
+  }>;
 }
 
 type ApiDividend = Partial<Dividend> & { dividend_id?: number };
+type PayoutResponse = {
+  dividend_id: number;
+  recipient_count?: number;
+  total_paid?: number;
+  failed_count?: number;
+  summary?: {
+    recipient_count: number;
+    total_paid: number;
+    failed_count: number;
+  };
+  items?: Array<{
+    payout_id: number;
+    account_id: number;
+    payout_amount: number;
+    payout_status: string;
+    payout_date: string;
+  }>;
+};
 
 function normalizeDividend(raw: ApiDividend): Dividend {
   return {
@@ -70,7 +95,9 @@ const MOCK_DIVIDENDS: Dividend[] = [
 
 export default function DividendPage() {
   const [dividends, setDividends] = useState<Dividend[]>(MOCK_DIVIDENDS);
+  const [completedDividendIds, setCompletedDividendIds] = useState<number[]>([]);
   const [results, setResults] = useState<DividendResult[]>([]);
+  const [expandedDividends, setExpandedDividends] = useState<number[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDividend, setEditingDividend] = useState<Dividend | null>(null);
   const [activeTab, setActiveTab] = useState<'declarations' | 'results'>(
@@ -95,14 +122,23 @@ export default function DividendPage() {
 
   useEffect(() => {
     fetchDividends();
-    fetchResults();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'results') return;
+    if (completedDividendIds.length === 0) {
+      setResults([]);
+      return;
+    }
+    fetchResults(completedDividendIds);
+  }, [activeTab, completedDividendIds]);
 
   const fetchDividends = async () => {
     try {
       const response = await apiFetch('/v1/admin/dividends');
       if (!response.ok) {
         setDividends(MOCK_DIVIDENDS);
+        setCompletedDividendIds([]);
         return;
       }
       const data = (await response.json()) as {
@@ -118,26 +154,52 @@ export default function DividendPage() {
           data.items.map((d) => d.id ?? d.dividend_id),
         );
       }
-      setDividends(
-        data.items ? data.items.map((item) => normalizeDividend(item)) : MOCK_DIVIDENDS,
-      );
+      const normalized = data.items
+        ? data.items.map((item) => normalizeDividend(item))
+        : MOCK_DIVIDENDS;
+      setDividends(normalized);
+      const completed = normalized
+        .filter((item) => item.status === 'COMPLETED' && (item.id || item.dividend_id))
+        .map((item) => item.id ?? item.dividend_id ?? 0)
+        .filter((id) => id !== 0);
+      console.log('[dividends] completed ids', completed);
+      setCompletedDividendIds(completed);
     } catch (error) {
       console.error('Failed to fetch dividends:', error);
       setDividends(MOCK_DIVIDENDS);
+      setCompletedDividendIds([]);
     }
   };
 
-  const fetchResults = async () => {
-    // Mock data for dividend results
-    setResults([
-      {
-        dividend_id: 1,
-        executed_at: '2025-01-15T10:00:00+09:00',
-        total_recipients: 150,
-        success_count: 150,
-        failure_count: 0,
-      },
-    ]);
+  const fetchResults = async (dividendIds: number[]) => {
+    try {
+      const params = new URLSearchParams({ page: '1', page_size: '50' });
+      const requests = dividendIds.map(async (id) => {
+        const res = await apiFetch(
+          `/v1/admin/dividends/${id}/payouts?${params.toString()}`,
+          { method: 'GET' },
+        );
+        if (!res.ok) {
+          throw new Error(`Failed payouts fetch for ${id}: ${res.status}`);
+        }
+        const data = (await res.json()) as PayoutResponse;
+        const recipientCount = data.summary?.recipient_count ?? data.recipient_count ?? 0;
+        const totalPaid = data.summary?.total_paid ?? data.total_paid ?? 0;
+        const failedCount = data.summary?.failed_count ?? data.failed_count ?? 0;
+        return {
+          dividend_id: data.dividend_id ?? id,
+          recipient_count: recipientCount,
+          total_paid: totalPaid,
+          failed_count: failedCount,
+          items: data.items ?? [],
+        } satisfies DividendResult;
+      });
+      const results = await Promise.all(requests);
+      setResults(results);
+    } catch (error) {
+      console.error('Failed to fetch payout results:', error);
+      setResults([]);
+    }
   };
 
   const handleExecuteDividend = async (dividendId: number) => {
@@ -153,7 +215,6 @@ export default function DividendPage() {
       if (response.ok) {
         alert('배당이 실행되었습니다.');
         fetchDividends();
-        fetchResults();
       }
     } catch (error) {
       alert('배당 실행에 실패했습니다.');
@@ -164,6 +225,7 @@ export default function DividendPage() {
     const variants = {
       SCHEDULED: { label: '예정', className: 'bg-blue-100 text-blue-700' },
       EXECUTED: { label: '완료', className: 'bg-green-100 text-green-700' },
+      COMPLETED: { label: '완료', className: 'bg-green-100 text-green-700' },
       CANCELLED: { label: '취소', className: 'bg-gray-100 text-gray-600' },
     };
     const { label, className } = variants[status];
@@ -364,59 +426,95 @@ export default function DividendPage() {
                     배당 ID
                   </th>
                   <th className="text-left p-4 font-medium text-gray-700">
-                    실행 일시
+                    수령자 수
                   </th>
                   <th className="text-right p-4 font-medium text-gray-700">
-                    총 대상자
+                    지급 총액
                   </th>
                   <th className="text-right p-4 font-medium text-gray-700">
-                    성공
+                    실패 건수
                   </th>
-                  <th className="text-right p-4 font-medium text-gray-700">
-                    실패
-                  </th>
-                  <th className="text-right p-4 font-medium text-gray-700">
-                    성공률
+                  <th className="text-center p-4 font-medium text-gray-700">
+                    상세
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {results.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center text-gray-500">
+                    <td colSpan={5} className="p-12 text-center text-gray-500">
                       배당 집행 결과가 없습니다.
                     </td>
                   </tr>
                 ) : (
-                  results.map((result) => (
-                    <tr
-                      key={result.dividend_id}
-                      className="border-b hover:bg-gray-50"
-                    >
-                      <td className="p-4">{result.dividend_id}</td>
-                      <td className="p-4">
-                        {new Date(result.executed_at).toLocaleString('ko-KR')}
-                      </td>
-                      <td className="p-4 text-right">
-                        {result.total_recipients}명
-                      </td>
-                      <td className="p-4 text-right text-green-600 font-medium">
-                        {result.success_count}명
-                      </td>
-                      <td className="p-4 text-right text-gray-500 font-medium">
-                        {result.failure_count}명
-                      </td>
-                      <td className="p-4 text-right">
-                        <Badge className="bg-green-100 text-green-700">
-                          {(
-                            (result.success_count / result.total_recipients) *
-                            100
-                          ).toFixed(1)}
-                          %
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
+                  results.map((result) => {
+                    const isExpanded = expandedDividends.includes(result.dividend_id);
+                    const toggle = () => {
+                      setExpandedDividends((prev) =>
+                        prev.includes(result.dividend_id)
+                          ? prev.filter((id) => id !== result.dividend_id)
+                          : [...prev, result.dividend_id],
+                      );
+                    };
+                    return (
+                      <Fragment key={result.dividend_id}>
+                      <tr className="border-b hover:bg-gray-50">
+                        <td className="p-4">{result.dividend_id}</td>
+                        <td className="p-4">
+                          {result.recipient_count.toLocaleString()}명
+                        </td>
+                        <td className="p-4 text-right">
+                          {result.total_paid.toLocaleString()}원
+                        </td>
+                        <td className="p-4 text-right">
+                          {result.failed_count.toLocaleString()}건
+                        </td>
+                        <td className="p-4 text-center">
+                          <Button variant="outline" size="sm" onClick={toggle}>
+                            상세 보기
+                          </Button>
+                          </td>
+                        </tr>
+                        {isExpanded && result.items.length > 0 && (
+                          <tr className="border-b bg-gray-50/70">
+                            <td colSpan={5} className="p-4">
+                              <div className="space-y-3">
+                                {result.items.map((item) => (
+                                  <div
+                                    key={item.payout_id}
+                                    className="flex flex-wrap items-center justify-between rounded-lg border p-3 bg-white"
+                                  >
+                                    <div className="space-y-1">
+                                      <p className="text-sm text-gray-500">
+                                        지급 ID: {item.payout_id} / 계좌 ID: {item.account_id}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        지급일시: {new Date(item.payout_date).toLocaleString('ko-KR')}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <Badge
+                                        className={
+                                          item.payout_status === 'SUCCESS' || item.payout_status === 'PAID'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-gray-200 text-gray-700'
+                                        }
+                                      >
+                                        {item.payout_status}
+                                      </Badge>
+                                      <span className="text-sm font-semibold">
+                                        {item.payout_amount.toLocaleString()}원
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
