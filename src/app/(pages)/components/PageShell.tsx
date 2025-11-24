@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 
 import { Header } from "../main/layouts/Header"
 import { Footer } from "../main/layouts/Footer"
+import { TopAssetProvider } from "../context/TopAssetContext"
 
 const AUTH_PATH_PREFIX = "/auth"
 const ADMIN_PATH_PREFIX = "/admin"
@@ -89,10 +90,12 @@ export function PageShell({ children }: PageShellProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <Header containerClassName={spacing.header} />
-      <div className="flex-1 flex flex-col">{children}</div>
-      <Footer containerClassName={spacing.footer} backgroundClassName={spacing.footerBackground} />
-    </div>
+    <TopAssetProvider>
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header containerClassName={spacing.header} />
+        <div className="flex-1 flex flex-col">{children}</div>
+        <Footer containerClassName={spacing.footer} backgroundClassName={spacing.footerBackground} />
+      </div>
+    </TopAssetProvider>
   )
 }
