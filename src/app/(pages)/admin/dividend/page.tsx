@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Calendar, TrendingUp, CheckCircle } from 'lucide-react';
+import { apiFetch } from '@/lib/api-client';
 
 type DividendStatus = 'SCHEDULED' | 'EXECUTED' | 'CANCELLED';
 
@@ -78,24 +79,8 @@ export default function DividendPage() {
   );
 
   useEffect(() => {
-    fetchDividends();
     fetchResults();
   }, []);
-
-  const fetchDividends = async () => {
-    try {
-      const response = await fetch('/v1/admin/dividends');
-      if (!response.ok) {
-        setDividends(MOCK_DIVIDENDS);
-        return;
-      }
-      const data = await response.json();
-      setDividends((data.items as Dividend[] | undefined) || MOCK_DIVIDENDS);
-    } catch (error) {
-      console.error('Failed to fetch dividends:', error);
-      setDividends(MOCK_DIVIDENDS);
-    }
-  };
 
   const fetchResults = async () => {
     // Mock data for dividend results
@@ -406,10 +391,18 @@ export default function DividendPage() {
             setIsModalOpen(false);
             setEditingDividend(null);
           }}
-          onSave={() => {
+          onSave={(saved) => {
             setIsModalOpen(false);
             setEditingDividend(null);
-            fetchDividends();
+            setDividends((prev) => {
+              const existingIndex = prev.findIndex((d) => d.id === saved.id);
+              if (existingIndex !== -1) {
+                const next = [...prev];
+                next[existingIndex] = saved;
+                return next;
+              }
+              return [saved, ...prev];
+            });
           }}
         />
       )}
@@ -420,7 +413,7 @@ export default function DividendPage() {
 interface DividendModalProps {
   dividend: Dividend | null;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (saved: Dividend) => void;
 }
 
 function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
@@ -435,22 +428,52 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.product_id) {
+      alert('상품 ID를 입력해주세요.');
+      return;
+    }
+    if (!formData.total_amount) {
+      alert('배당 총액을 입력해주세요.');
+      return;
+    }
+
     try {
       const method = dividend ? 'PUT' : 'POST';
       const body = dividend
         ? { dividend_id: dividend.id, ...formData }
         : formData;
 
-      const response = await fetch('/v1/admin/dividends', {
+      const response = await apiFetch('/v1/admin/dividends', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (response.ok) {
+        const saved = (await response.json()) as Dividend | undefined;
+        const fallback: Dividend = {
+          id: saved?.id ?? dividend?.id ?? Date.now(),
+          product_id: formData.product_id,
+          product_name: dividend?.product_name ?? saved?.product_name,
+          status: dividend?.status ?? 'SCHEDULED',
+          record_date: formData.record_date,
+          payout_date: formData.payout_date,
+          total_amount: formData.total_amount,
+          memo: formData.memo,
+        };
         alert(dividend ? '배당이 수정되었습니다.' : '배당이 생성되었습니다.');
-        onSave();
+        onSave(saved ?? fallback);
+        return;
       }
+
+      let message = '배당 저장에 실패했습니다.';
+      try {
+        const err = await response.json();
+        message = err?.detail ?? err?.message ?? message;
+      } catch {
+        // ignore parse error, fall back to default message
+      }
+      alert(`${message} (status: ${response.status})`);
     } catch (error) {
       alert('저장에 실패했습니다.');
     }
@@ -473,9 +496,13 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
             <input
               type="number"
               required
-              value={formData.product_id}
+              value={formData.product_id === 0 ? '' : formData.product_id}
               onChange={(e) =>
-                setFormData({ ...formData, product_id: Number(e.target.value) })
+                setFormData({
+                  ...formData,
+                  product_id:
+                    e.target.value === '' ? 0 : Number(e.target.value),
+                })
               }
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
@@ -524,11 +551,12 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
             <input
               type="number"
               required
-              value={formData.total_amount}
+              value={formData.total_amount === 0 ? '' : formData.total_amount}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  total_amount: Number(e.target.value),
+                  total_amount:
+                    e.target.value === '' ? 0 : Number(e.target.value),
                 })
               }
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
