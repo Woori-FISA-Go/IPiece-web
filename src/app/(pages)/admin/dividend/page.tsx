@@ -30,6 +30,21 @@ interface DividendResult {
   failure_count: number;
 }
 
+type ApiDividend = Partial<Dividend> & { dividend_id?: number };
+
+function normalizeDividend(raw: ApiDividend): Dividend {
+  return {
+    id: raw.id ?? raw.dividend_id ?? Date.now(),
+    product_id: raw.product_id ?? 0,
+    product_name: raw.product_name,
+    status: raw.status ?? 'SCHEDULED',
+    record_date: raw.record_date ?? '',
+    payout_date: raw.payout_date ?? '',
+    total_amount: raw.total_amount ?? 0,
+    memo: raw.memo,
+  };
+}
+
 const MOCK_DIVIDENDS: Dividend[] = [
   {
     id: 101,
@@ -79,8 +94,38 @@ export default function DividendPage() {
   );
 
   useEffect(() => {
+    fetchDividends();
     fetchResults();
   }, []);
+
+  const fetchDividends = async () => {
+    try {
+      const response = await apiFetch('/v1/admin/dividends');
+      if (!response.ok) {
+        setDividends(MOCK_DIVIDENDS);
+        return;
+      }
+      const data = (await response.json()) as {
+        items?: ApiDividend[];
+        page?: number;
+        page_size?: number;
+        total_count?: number;
+      };
+      console.log('[dividends] response', data);
+      if (data.items) {
+        console.log(
+          '[dividends] item ids',
+          data.items.map((d) => d.id ?? d.dividend_id),
+        );
+      }
+      setDividends(
+        data.items ? data.items.map((item) => normalizeDividend(item)) : MOCK_DIVIDENDS,
+      );
+    } catch (error) {
+      console.error('Failed to fetch dividends:', error);
+      setDividends(MOCK_DIVIDENDS);
+    }
+  };
 
   const fetchResults = async () => {
     // Mock data for dividend results
@@ -238,9 +283,6 @@ export default function DividendPage() {
                   <th className="text-right p-4 font-medium text-gray-700">
                     배당 총액
                   </th>
-                  <th className="text-left p-4 font-medium text-gray-700">
-                    메모
-                  </th>
                   <th className="text-center p-4 font-medium text-gray-700">
                     작업
                   </th>
@@ -249,63 +291,62 @@ export default function DividendPage() {
               <tbody>
                 {scheduledDividends.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-12 text-center text-gray-500">
+                    <td colSpan={7} className="p-12 text-center text-gray-500">
                       배당 선언이 없습니다.
                     </td>
                   </tr>
                 ) : (
-                  scheduledDividends.map((dividend) => (
-                    <tr key={dividend.id} className="border-b hover:bg-gray-50">
-                      <td className="p-4">{dividend.id}</td>
-                      <td className="p-4">
-                        {dividend.product_name ||
-                          `상품 #${dividend.product_id}`}
-                      </td>
-                      <td className="p-4">{getStatusBadge(dividend.status)}</td>
-                      <td className="p-4">
-                        {new Date(dividend.record_date).toLocaleDateString(
-                          'ko-KR',
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {new Date(dividend.payout_date).toLocaleDateString(
-                          'ko-KR',
-                        )}
-                      </td>
-                      <td className="p-4 text-right font-medium">
-                        {dividend.total_amount.toLocaleString()}원
-                      </td>
-                      <td className="p-4 text-gray-600 max-w-xs truncate">
-                        {dividend.memo || '-'}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {dividend.status === 'SCHEDULED' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingDividend(dividend);
-                                  setIsModalOpen(true);
-                                }}
-                              >
-                                수정
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  handleExecuteDividend(dividend.id)
-                                }
-                              >
-                                실행
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  scheduledDividends.map((dividend, idx) => {
+                    const rowKey =
+                      dividend.id ??
+                      dividend.dividend_id ??
+                      dividend.product_id ??
+                      `pending-${idx}-${dividend.record_date}`;
+                    const displayId =
+                      dividend.id ?? dividend.dividend_id ?? dividend.product_id ?? '미할당';
+                    return (
+                      <tr key={rowKey} className="border-b hover:bg-gray-50">
+                        <td className="p-4">{displayId}</td>
+                        <td className="p-4">
+                          {dividend.product_name || `상품 #${dividend.product_id}`}
+                        </td>
+                        <td className="p-4">{getStatusBadge(dividend.status)}</td>
+                        <td className="p-4">
+                          {new Date(dividend.record_date).toLocaleDateString('ko-KR')}
+                        </td>
+                        <td className="p-4">
+                          {new Date(dividend.payout_date).toLocaleDateString('ko-KR')}
+                        </td>
+                        <td className="p-4 text-right font-medium">
+                          {dividend.total_amount.toLocaleString()}원
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center justify-center gap-2">
+                            {dividend.status === 'SCHEDULED' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingDividend(dividend);
+                                    setIsModalOpen(true);
+                                  }}
+                                >
+                                  수정
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleExecuteDividend(dividend.id)}
+                                >
+                                  실행
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -438,21 +479,21 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
     }
 
     try {
-      const method = dividend ? 'PUT' : 'POST';
       const body = dividend
         ? { dividend_id: dividend.id, ...formData }
         : formData;
 
       const response = await apiFetch('/v1/admin/dividends', {
-        method,
+        // 백엔드가 PUT 미지원 시 POST로 통일
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (response.ok) {
-        const saved = (await response.json()) as Dividend | undefined;
-        const fallback: Dividend = {
-          id: saved?.id ?? dividend?.id ?? Date.now(),
+        const saved = (await response.json()) as ApiDividend | undefined;
+        const fallback: ApiDividend = {
+          id: dividend?.id ?? saved?.id ?? saved?.dividend_id ?? Date.now(),
           product_id: formData.product_id,
           product_name: dividend?.product_name ?? saved?.product_name,
           status: dividend?.status ?? 'SCHEDULED',
@@ -462,7 +503,7 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
           memo: formData.memo,
         };
         alert(dividend ? '배당이 수정되었습니다.' : '배당이 생성되었습니다.');
-        onSave(saved ?? fallback);
+        onSave(normalizeDividend(saved ?? fallback));
         return;
       }
 
