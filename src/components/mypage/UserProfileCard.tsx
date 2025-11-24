@@ -92,8 +92,8 @@ export default function UserProfileCard({ data, isLoading }: UserProfileCardProp
           <div className="mb-2 text-sm text-gray-700">보유 IP</div>
           {thumbnails.length ? (
             <div className="flex flex-wrap gap-2">
-              {thumbnails.map((thumb) => (
-                <div key={thumb} className="h-10 w-10 overflow-hidden rounded bg-amber-50">
+              {thumbnails.map((thumb, index) => (
+                <div key={`${thumb}-${index}`} className="h-10 w-10 overflow-hidden rounded bg-amber-50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={thumb} alt="보유 IP" className="h-full w-full object-cover" />
                 </div>

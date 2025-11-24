@@ -6,6 +6,7 @@ import walletIcon from "@/assets/images/wallet_icon.svg"
 import { CustomCard as Card } from "@/components/ui/custom-card"
 import { Button } from "@/components/ui/button"
 import type { AccountJournalEntry, AccountJournalSummary } from "./types"
+import { apiFetch } from "@/lib/api-client"
 
 interface AccountDepositPanelProps {
   accountState: "noAccount" | "emptyHistory" | "hasHistory"
@@ -14,6 +15,7 @@ interface AccountDepositPanelProps {
   isLoading?: boolean
   error?: string | null
   userName?: string | null
+  onAccountCreated?: () => Promise<void> | void
 }
 
 const numberFormatter = new Intl.NumberFormat("ko-KR")
@@ -51,8 +53,11 @@ export default function AccountDepositPanel({
   isLoading,
   error,
   userName,
+  onAccountCreated,
 }: AccountDepositPanelProps) {
   const [activeTab, setActiveTab] = useState<"ALL" | "DEPOSIT" | "WITHDRAW">("ALL")
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const filteredItems = useMemo(() => {
     const ordered = [...items].sort(
@@ -68,17 +73,56 @@ export default function AccountDepositPanel({
     })
   }, [items, activeTab])
 
+  const handleCreateAccount = async () => {
+    if (isCreatingAccount) return
+    setCreateError(null)
+    setIsCreatingAccount(true)
+    try {
+      const res = await apiFetch("/v1/mypage/account", { method: "POST" })
+      if (!res.ok) {
+        const clone = res.clone()
+        let payload: Record<string, unknown> | undefined
+        try {
+          payload = (await clone.json()) as Record<string, unknown>
+        } catch {
+          /* ignore */
+        }
+        throw new Error(
+          (payload?.detail as string) ||
+            (payload?.message as string) ||
+            "가상계좌를 생성하지 못했습니다.",
+        )
+      }
+      await onAccountCreated?.()
+    } catch (creationError) {
+      setCreateError(
+        creationError instanceof Error
+          ? creationError.message
+          : "가상계좌 생성에 실패했습니다.",
+      )
+    } finally {
+      setIsCreatingAccount(false)
+    }
+  }
+
   if (accountState === "noAccount") {
     const displayName = userName || "회원"
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
         <Card className="flex flex-col items-center gap-4 border border-gray-200 px-6 py-10 text-center">
-          <Image src={walletIcon} alt="가상계좌 없음" width={56} height={56} />
+          <Image src={walletIcon} alt="???? ??" width={56} height={56} />
           <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{displayName}</span>님, 가상 계좌를 생성하고 거래를 시작해보세요.
+            <span className="font-semibold text-gray-900">{displayName}</span>?, ????? ???? ??? ??????.
           </p>
-          <Button className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]">가상계좌 생성하기</Button>
+          <Button
+            className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]"
+            onClick={handleCreateAccount}
+            disabled={isCreatingAccount}
+          >
+            {isCreatingAccount ? "?? ?..." : "???? ????"}
+          </Button>
+          {createError ? <p className="text-xs text-red-500">{createError}</p> : null}
         </Card>
       </div>
     )
