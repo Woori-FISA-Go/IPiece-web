@@ -20,7 +20,10 @@ export async function apiFetch(input: string, init?: RequestInit) {
     try {
       res = await fetch(`${apiBase}${input}`, { ...init, headers })
     } catch (err) {
-      console.error('Network error while fetching', input, err)
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return new Response(null, { status: 499, statusText: "Request Aborted" })
+      }
+      console.error("Network error while fetching", input, err)
       return new Response(null, { status: 503, statusText: "Network Error" })
     }
     if (res.status !== 401) return res
