@@ -138,7 +138,7 @@ export default function DividendPage() {
   console.log(
     '[dividends] monthly total calc',
     dividendsInMonthForTotal.map((d) => ({
-      id: d.id ?? d.dividend_id,
+      id: d.id ?? d.product_id,
       amount: d.total_amount,
     })),
   );
@@ -197,8 +197,8 @@ export default function DividendPage() {
         : MOCK_DIVIDENDS;
       setDividends(normalized);
       const completed = normalized
-        .filter((item) => item.status === 'COMPLETED' && (item.id || item.dividend_id))
-        .map((item) => item.id ?? item.dividend_id ?? 0)
+        .filter((item) => item.status === 'COMPLETED' && item.id)
+        .map((item) => item.id ?? 0)
         .filter((id) => id !== 0);
       console.log('[dividends] completed ids', completed);
       setCompletedDividendIds(completed);
@@ -407,11 +407,10 @@ export default function DividendPage() {
                   scheduledDividends.map((dividend, idx) => {
                     const rowKey =
                       dividend.id ??
-                      dividend.dividend_id ??
                       dividend.product_id ??
                       `pending-${idx}-${dividend.record_date}`;
                     const displayId =
-                      dividend.id ?? dividend.dividend_id ?? dividend.product_id ?? '미할당';
+                      dividend.id ?? dividend.product_id ?? '미할당';
                     return (
                       <tr key={rowKey} className="border-b hover:bg-gray-50">
                         <td className="p-4">{displayId}</td>

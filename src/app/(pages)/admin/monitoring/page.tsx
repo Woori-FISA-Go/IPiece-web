@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
+import { apiFetch } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -63,19 +65,44 @@ const trafficData = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 interface BlockchainStatus {
+  chain_id: string;
   latest_block_number: number;
   peer_count: number;
   syncing: boolean;
-  gas_price: number;
   network_id: string;
   healthy: boolean;
 }
 
+type BlockchainTx = {
+  tx_id: number;
+  tx_hash: string;
+  status: string;
+  tx_type: string;
+  user_id: number;
+  from_address: string | null;
+  to_address: string | null;
+  token_address: string | null;
+  amount: number | null;
+  block_number: number | null;
+  block_hash: string | null;
+  gas_used: number | null;
+  created_at: string;
+};
+
+type TransactionsResponse = {
+  items?: BlockchainTx[];
+  page?: number;
+  page_size?: number;
+  total_count?: number;
+};
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState('system');
   const [blockchainStatus, setBlockchainStatus] =
     useState<BlockchainStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<BlockchainTx[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const [expandedTxIds, setExpandedTxIds] = useState<number[]>([]);
 
   // System metrics (mock data)
   const systemMetrics = {
@@ -92,30 +119,57 @@ export default function MonitoringPage() {
   useEffect(() => {
     if (activeTab === 'blockchain') {
       fetchBlockchainStatus();
+      fetchTransactions();
     }
   }, [activeTab]);
 
   const fetchBlockchainStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/admin/blockchain/summary');
+      const response = await apiFetch('/v1/admin/blockchain/status');
       if (!response.ok) {
-        throw new Error('Failed to load blockchain status');
+        console.error('Failed to load blockchain status', response.status);
+        setBlockchainStatus({
+          chain_id: 'unknown',
+          latest_block_number: 0,
+          peer_count: 0,
+          syncing: false,
+          network_id: 'unknown',
+          healthy: false,
+        });
+        return;
       }
       const data = await response.json();
       setBlockchainStatus(data);
     } catch (error) {
       console.error('Failed to fetch blockchain status:', error);
       setBlockchainStatus({
+        chain_id: 'unknown',
         latest_block_number: 0,
         peer_count: 0,
         syncing: false,
-        gas_price: 0,
         network_id: 'unknown',
         healthy: false,
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setTxLoading(true);
+      const response = await apiFetch('/v1/admin/blockchain/transactions?page=1&page_size=50');
+      if (!response.ok) {
+        throw new Error(`Failed to load transactions: ${response.status}`);
+      }
+      const data = (await response.json()) as TransactionsResponse;
+      setTransactions(data.items ?? []);
+    } catch (error) {
+      console.error('Failed to fetch transactions', error);
+      setTransactions([]);
+    } finally {
+      setTxLoading(false);
     }
   };
 
@@ -596,7 +650,7 @@ export default function MonitoringPage() {
                           최신 블록 번호
                         </p>
                         <p className="text-3xl font-bold">
-                          {blockchainStatus.latest_block_number.toLocaleString()}
+                          {blockchainStatus.latest_block_number}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
                           실시간 업데이트
@@ -625,7 +679,7 @@ export default function MonitoringPage() {
                         </p>
                       </div>
                       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                        <Users className="w-6 h-6 text-purple-600" />
+                        <Server className="w-6 h-6 text-purple-600" />
                       </div>
                     </div>
                   </CardContent>
@@ -633,7 +687,7 @@ export default function MonitoringPage() {
               </div>
 
               {/* Detailed Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base font-semibold">
@@ -656,12 +710,11 @@ export default function MonitoringPage() {
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          Gas Price
+                          Chain ID
                         </span>
                       </div>
                       <span className="font-mono font-semibold">
-                        {(blockchainStatus.gas_price / 1000000000).toFixed(2)}{' '}
-                        Gwei
+                        {blockchainStatus.chain_id}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-3">
@@ -685,43 +738,89 @@ export default function MonitoringPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base font-semibold">
-                      블록체인 통계
+                      최근 트랜잭션
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-slate-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-muted-foreground">
-                          평균 블록 생성 시간
-                        </span>
-                        <span className="text-lg font-bold">~12.5s</span>
-                      </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full w-[85%]" />
-                      </div>
-                    </div>
-                    <div className="p-4 bg-emerald-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-muted-foreground">
-                          트랜잭션 성공률
-                        </span>
-                        <span className="text-lg font-bold">99.8%</span>
-                      </div>
-                      <div className="h-2 bg-emerald-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full w-[99.8%]" />
-                      </div>
-                    </div>
-                    <div className="p-4 bg-purple-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-muted-foreground">
-                          네트워크 활성도
-                        </span>
-                        <span className="text-lg font-bold">높음</span>
-                      </div>
-                      <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500 rounded-full w-[92%]" />
-                      </div>
-                    </div>
+                  <CardContent className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                    {txLoading && (
+                      <p className="text-sm text-muted-foreground">불러오는 중...</p>
+                    )}
+                    {!txLoading &&
+                      transactions.slice(0, 20).map((tx) => {
+                        const isExpanded = expandedTxIds.includes(tx.tx_id);
+                        return (
+                          <Fragment key={tx.tx_id}>
+                            <div className="p-3 rounded-lg border bg-slate-50">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <p className="text-sm font-semibold">
+                                    {tx.tx_type} #{tx.tx_id}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground font-mono break-all">
+                                    {tx.tx_hash}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(tx.created_at).toLocaleString('ko-KR')}
+                                  </p>
+                                </div>
+                                <div className="text-right space-y-1">
+                                  <Badge
+                                    className={
+                                      tx.status === 'SUCCESS'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-gray-200 text-gray-700'
+                                    }
+                                  >
+                                    {tx.status}
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() =>
+                                      setExpandedTxIds((prev) =>
+                                        prev.includes(tx.tx_id)
+                                          ? prev.filter((id) => id !== tx.tx_id)
+                                          : [...prev, tx.tx_id],
+                                      )
+                                    }
+                                  >
+                                    ⋯
+                                  </Button>
+                                </div>
+                              </div>
+                              {isExpanded && (
+                                <div className="mt-3 grid gap-1 text-xs text-muted-foreground font-mono">
+                                  <div>From: {tx.from_address ?? '-'}</div>
+                                  <div>To: {tx.to_address ?? '-'}</div>
+                                  <div>Token: {tx.token_address ?? '-'}</div>
+                                  <div>Block#: {tx.block_number ?? '-'}</div>
+                                  <div>Block Hash: {tx.block_hash ?? '-'}</div>
+                                  <div>Gas Used: {tx.gas_used ?? '-'}</div>
+                                  <div>
+                                    Amount:{' '}
+                                    {tx.amount !== null ? (
+                                      <span className="font-semibold">
+                                        {tx.amount.toLocaleString()}
+                                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">
+                                          ₩
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      '-'
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </Fragment>
+                        );
+                      })}
+                    {!txLoading && transactions.slice(0, 20).length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        표시할 트랜잭션이 없습니다.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
