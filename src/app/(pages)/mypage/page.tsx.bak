@@ -1,4 +1,4 @@
-ï»¿"use client"
+"use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
@@ -9,8 +9,8 @@ import { apiFetch } from "@/lib/api-client"
 import type { MyHomeResponse } from "@/components/mypage/types"
 
 const TAB_HOME = "MY HOME"
-const TAB_ACCOUNT = "ë‚´ ê³„ì¢Œ"
-const TAB_INTEREST = "ê´€ì‹¬"
+const TAB_ACCOUNT = "³» °èÁÂ"
+const TAB_INTEREST = "°ü½É"
 const tabs = [TAB_HOME, TAB_ACCOUNT, TAB_INTEREST]
 const ASSET_PAGE_SIZE = 10
 const OFFERING_PAGE_SIZE = 10
@@ -78,13 +78,13 @@ export default function MyPage() {
           }
           if (res.status === 404) {
             const fallbackName =
-              (payload?.user_made_id as string) || (payload?.userMadeId as string) || "íšŒì›ë‹˜"
+              (payload?.user_made_id as string) || (payload?.userMadeId as string) || "È¸¿ø´Ô"
             setNoAccountUser(fallbackName)
             setMyHomeData(null)
             setHomeError(null)
             return
           }
-          throw new Error(message || "ë§ˆì´í˜ì´ì§€ ì •ë³´ë¥¼ ë¶ˆëŸ¬ì˜¤ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.")
+          throw new Error(message || "¸¶ÀÌÆäÀÌÁö Á¤º¸¸¦ ºÒ·¯¿ÀÁö ¸øÇß½À´Ï´Ù.")
         }
         setNoAccountUser(null)
         const data = (await res.json()) as MyHomeResponse
@@ -92,7 +92,7 @@ export default function MyPage() {
       } catch (error) {
         console.error("failed to fetch my home", error)
         setNoAccountUser(null)
-        setHomeError(error instanceof Error ? error.message : "ë§ˆì´í˜ì´ì§€ ì •ë³´ë¥¼ ë¶ˆëŸ¬ì˜¤ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.")
+        setHomeError(error instanceof Error ? error.message : "¸¶ÀÌÆäÀÌÁö Á¤º¸¸¦ ºÒ·¯¿ÀÁö ¸øÇß½À´Ï´Ù.")
       } finally {
         setIsLoadingHome(false)
       }
