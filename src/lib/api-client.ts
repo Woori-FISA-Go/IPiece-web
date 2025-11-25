@@ -1,6 +1,6 @@
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, clearTokens, getRefreshToken } from "./auth"
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? ""
 
 type ErrorResponse = {
   detail?: string
@@ -16,7 +16,13 @@ export async function apiFetch(input: string, init?: RequestInit) {
   }
 
   const doFetch = async () => {
-    const res = await fetch(`${apiBase}${input}`, { ...init, headers })
+    let res: Response
+    try {
+      res = await fetch(`${apiBase}${input}`, { ...init, headers })
+    } catch (err) {
+      console.error('Network error while fetching', input, err)
+      return new Response(null, { status: 503, statusText: "Network Error" })
+    }
     if (res.status !== 401) return res
 
     // Try refresh on 401 with EXPIRED_TOKEN

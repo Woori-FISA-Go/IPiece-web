@@ -95,7 +95,7 @@ export function useStompTopics({ topics, debug }: UseStompTopicsOptions) {
     const wsUrl =
       process.env.NEXT_PUBLIC_WS_URL ??
       process.env.NEXT_PUBLIC_SOCKET_URL ??
-      'ws://localhost:8080/ws'
+      `${window.location.origin.replace(/^http/, "ws")}/ws`
 
     const accessToken = getAccessToken()
     const appendToken = (raw: string) => {
