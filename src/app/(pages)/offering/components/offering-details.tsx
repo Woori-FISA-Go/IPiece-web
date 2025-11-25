@@ -6,11 +6,11 @@ type OfferingDetailsProps = {
 }
 
 const cautionTexts = [
-  "본 자료는 투자 권유가 아닙니다. 투자에 앞서 반드시 위험을 확인해주세요.",
-  "투자자는 아이피스 플랫폼 내 공시 자료를 확인 후 결정해야 합니다.",
-  "증권상품은 예금자보호법의 보호 대상이 아니며 시장 변동성에 따라 원금 손실이 발생할 수 있습니다.",
+  "본 자료는 투자 권유가 아닙니다. 투자 전 반드시 상품의 위험을 확인해 주세요.",
+  "투자자는 IPiece 플랫폼의 공시 자료를 확인한 뒤 스스로 판단해야 합니다.",
+  "증권형 상품은 예금자보호법의 보호 대상이 아니며 시장 변동성으로 손실이 발생할 수 있습니다.",
   "권리는 블록체인 기반 투자자 계좌에 기록되어 관리됩니다.",
-  "법령 및 규제 환경 변화에 따라 투자자 이익이 달라질 수 있습니다.",
+  "법령 및 규제 환경 변화에 따라 투자 수익이 달라질 수 있습니다.",
 ]
 
 export function OfferingDetails({ detail, isLoading }: OfferingDetailsProps) {
@@ -45,7 +45,7 @@ export function OfferingDetails({ detail, isLoading }: OfferingDetailsProps) {
     {
       label: "공모가",
       value: detail?.offeringPrice
-        ? `1 ${detail?.tokenName ?? "Token"} Tokens 당 ${detail.offeringPrice.toLocaleString("ko-KR")}원`
+        ? `1 ${detail?.tokenName ?? "Token"} 당 ${detail.offeringPrice.toLocaleString("ko-KR")} KRW`
         : "-",
     },
   ]
@@ -55,10 +55,14 @@ export function OfferingDetails({ detail, isLoading }: OfferingDetailsProps) {
       <section className="bg-white">
         <div className="w-full">
           {heroImage ? (
-            <img src={heroImage} alt={detail?.productName ?? "공모 이미지"} className="block w-full h-auto object-cover" />
+            <img
+              src={heroImage}
+              alt={detail?.productName ?? "공모 이미지"}
+              className="block h-auto w-full object-cover"
+            />
           ) : (
             <div className="flex h-64 items-center justify-center bg-[#f0f0f0] text-sm text-gray-400">
-              {isLoading ? "이미지를 불러오는 중입니다." : "제공된 이미지가 없습니다."}
+              {isLoading ? "이미지를 불러오는 중입니다." : "공유된 이미지가 없습니다."}
             </div>
           )}
         </div>
@@ -106,10 +110,10 @@ function SummaryTable({ title, rows }: SummaryTableProps) {
         <tbody>
           {rows.map(({ label, value }) => (
             <tr key={label} className="border-t border-[#D9DEE8] first:border-t-0">
-              <th className="w-36 bg-[#F2F2F7] px-4 py-3 text-center font-bold text-[#5D6472] border-r border-[#D9DEE8]">
+              <th className="w-36 border-r border-[#D9DEE8] bg-[#F2F2F7] px-4 py-3 text-center font-bold text-[#5D6472]">
                 {label}
               </th>
-              <td className="px-5 py-3 text-[#1F2229] border-l border-[#D9DEE8]">{value || "-"}</td>
+              <td className="border-l border-[#D9DEE8] px-5 py-3 text-[#1F2229]">{value || "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -137,22 +141,24 @@ function formatOfferingPeriod(start?: string, end?: string) {
 
 function formatIssueAmount(detail?: OfferingDetail | null) {
   if (!detail) return "-"
-  if (typeof detail.offeringAmount !== "number" || typeof detail.offeringPrice !== "number") {
-    return formatCurrency(detail.issueAmount) ?? "-"
-  }
-  const total = detail.offeringAmount * detail.offeringPrice
-  const totalFormatted = total.toLocaleString("ko-KR")
-  const tokensText = formatTokenCount(detail.offeringAmount, detail.tokenName) ?? ""
-  return `${totalFormatted} KRW (${tokensText})`
+  const amount = detail.issueAmount ?? null
+  if (typeof amount !== "number") return "-"
+  const amountText = `${amount.toLocaleString("ko-KR")} KRW`
+  const tokens =
+    formatTokenCount(detail.tokenQuantity ?? detail.offeringTokens, detail.tokenName) ?? undefined
+  return tokens ? `${amountText} (${tokens})` : amountText
 }
 
 function formatOfferingTotal(detail?: OfferingDetail | null) {
   if (!detail) return "-"
+  if (typeof detail.issueAmount === "number") {
+    return `${detail.issueAmount.toLocaleString("ko-KR")} KRW`
+  }
   if (typeof detail.offeringAmount === "number" && typeof detail.offeringPrice === "number") {
     const total = detail.offeringAmount * detail.offeringPrice
     return `${total.toLocaleString("ko-KR")} KRW`
   }
-  return formatCurrency(detail.offeringAmount ?? detail.issueAmount) ?? "-"
+  return "-"
 }
 
 function formatDate(value?: string) {
