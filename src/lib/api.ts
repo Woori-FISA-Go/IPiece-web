@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 export async function apiGet(path: string, init?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, { ...init, next: { revalidate: 0 } })
@@ -18,4 +18,3 @@ export async function apiPost(path: string, body?: unknown, init?: RequestInit) 
 }
 
 export { API_BASE }
-

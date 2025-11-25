@@ -10,7 +10,7 @@ import { SAMPLE_BANNERS, SAMPLE_OFFERING, SAMPLE_TRADING } from "./constants/dat
 import iconMore from "./assets/icon_more.png"
 import { getAccessToken } from "@/lib/auth"
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? ""
 
 type HomeResponse = {
   banners?: Array<{

@@ -1,25 +1,45 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import InterestList from "@/app/(pages)/mypage/InterestList"
 import MyPortfolio from "@/app/(pages)/mypage/MyPortfolio"
 import AccountHistory from "@/app/(pages)/mypage/AccountHistory"
+import { apiFetch } from "@/lib/api-client"
+import type { MyHomeResponse } from "@/components/mypage/types"
 
 const TAB_HOME = "MY HOME"
 const TAB_ACCOUNT = "내 계좌"
 const TAB_INTEREST = "관심"
 const tabs = [TAB_HOME, TAB_ACCOUNT, TAB_INTEREST]
+const ASSET_PAGE_SIZE = 10
+const OFFERING_PAGE_SIZE = 10
 
 export default function MyPage() {
   const [activeTab, setActiveTab] = useState<string>(tabs[0])
-  const [hasAssets, setHasAssets] = useState(true)
-  const [accountState, setAccountState] =
-    useState<"noAccount" | "emptyHistory" | "hasHistory">("noAccount")
-  const [hasInterestItems, setHasInterestItems] = useState(true)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
   const tabsRef = useRef<(HTMLButtonElement | null)[]>([])
+  const offeringCursorRef = useRef<number | null>(null)
+
+  const [accountState, setAccountState] =
+    useState<"noAccount" | "emptyHistory" | "hasHistory">("noAccount")
+
+  const [myHomeData, setMyHomeData] = useState<MyHomeResponse | null>(null)
+  const [assetPage, setAssetPage] = useState(1)
+  const [offeringPage, setOfferingPage] = useState(1)
+  const [isLoadingHome, setIsLoadingHome] = useState(false)
+  const [homeError, setHomeError] = useState<string | null>(null)
+  const [noAccountUser, setNoAccountUser] = useState<string | null>(null)
+  const offeringNextCursor = useMemo(() => {
+    if (!myHomeData) return null
+    if (typeof myHomeData.offeringNextPage === "number") {
+      return myHomeData.offeringNextPage
+    }
+    if (typeof myHomeData.offering_next_page === "number") {
+      return myHomeData.offering_next_page
+    }
+    return null
+  }, [myHomeData])
 
   useEffect(() => {
     const activeTabIndex = tabs.indexOf(activeTab)
@@ -28,6 +48,72 @@ export default function MyPage() {
       setIndicatorStyle({ left: activeButton.offsetLeft, width: activeButton.offsetWidth })
     }
   }, [activeTab])
+
+  const fetchMyHome = useCallback(
+    async (
+      assetPageValue: number,
+      offeringPageValue: number,
+      offeringNextPageValue?: number | null,
+    ) => {
+      setIsLoadingHome(true)
+      setHomeError(null)
+      try {
+        const nextPageParam =
+          typeof offeringNextPageValue === "number" ? offeringNextPageValue : offeringPageValue
+        const params = new URLSearchParams({
+          page: String(assetPageValue),
+          offeringPage: String(offeringPageValue),
+          offeringNextPage: String(nextPageParam),
+        })
+        const res = await apiFetch(`/v1/mypage/myhome?${params.toString()}`)
+        if (!res.ok) {
+          const clone = res.clone()
+          let message: string | undefined
+          let payload: Record<string, unknown> | undefined
+          try {
+            payload = (await clone.json()) as Record<string, unknown>
+            message = (payload.detail as string) || (payload.message as string)
+          } catch {
+            /* ignore */
+          }
+          if (res.status === 404) {
+            setNoAccountUser((payload?.user_made_id as string) || (payload?.userMadeId as string) || null)
+            setMyHomeData(null)
+            setHomeError(null)
+            return
+          }
+          throw new Error(message || "마이홈 정보를 불러오지 못했습니다.")
+        }
+        setNoAccountUser(null)
+        const data = (await res.json()) as MyHomeResponse
+        setMyHomeData(data)
+      } catch (error) {
+        console.error("failed to fetch my home", error)
+        setNoAccountUser(null)
+        setHomeError(error instanceof Error ? error.message : "마이홈 정보를 불러오지 못했습니다.")
+      } finally {
+        setIsLoadingHome(false)
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const cursorValue = offeringCursorRef.current
+    offeringCursorRef.current = null
+    fetchMyHome(assetPage, offeringPage, cursorValue ?? undefined)
+  }, [assetPage, offeringPage, fetchMyHome])
+
+  const handleOfferingPageChange = useCallback(
+    (page: number) => {
+      if (page === offeringPage) return
+      const isForward = page > offeringPage
+      offeringCursorRef.current =
+        isForward && typeof offeringNextCursor === "number" ? offeringNextCursor : null
+      setOfferingPage(page)
+    },
+    [offeringPage, offeringNextCursor],
+  )
 
   return (
     <main className="flex-1 bg-white">
@@ -58,102 +144,23 @@ export default function MyPage() {
 
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {activeTab === TAB_HOME && (
-          <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">
-                디자인 확인 모드: 포트폴리오 상태 전환
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={hasAssets ? "default" : "outline"}
-                  onClick={() => setHasAssets(true)}
-                  className={hasAssets ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  자산 있음
-                </Button>
-                <Button
-                  size="sm"
-                  variant={!hasAssets ? "default" : "outline"}
-                  onClick={() => setHasAssets(false)}
-                  className={!hasAssets ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  자산 없음
-                </Button>
-              </div>
-            </div>
-          </div>
+          <MyPortfolio
+            data={myHomeData}
+            isLoading={isLoadingHome}
+            error={homeError}
+            noAccountUser={noAccountUser}
+            currentPage={assetPage}
+            pageSize={ASSET_PAGE_SIZE}
+            onChangePage={setAssetPage}
+            offeringPage={offeringPage}
+            offeringPageSize={OFFERING_PAGE_SIZE}
+            onChangeOfferingPage={handleOfferingPageChange}
+          />
         )}
-
-        {activeTab === TAB_ACCOUNT && (
-          <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">
-                디자인 확인 모드: 계좌 상태 전환
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={accountState === "noAccount" ? "default" : "outline"}
-                  onClick={() => setAccountState("noAccount")}
-                  className={accountState === "noAccount" ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  계좌 없음
-                </Button>
-                <Button
-                  size="sm"
-                  variant={accountState === "emptyHistory" ? "default" : "outline"}
-                  onClick={() => setAccountState("emptyHistory")}
-                  className={accountState === "emptyHistory" ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  거래 내역 없음
-                </Button>
-                <Button
-                  size="sm"
-                  variant={accountState === "hasHistory" ? "default" : "outline"}
-                  onClick={() => setAccountState("hasHistory")}
-                  className={accountState === "hasHistory" ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  거래 내역 있음
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === TAB_INTEREST && (
-          <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">
-                디자인 확인 모드: 관심 목록 상태 전환
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={hasInterestItems ? "default" : "outline"}
-                  onClick={() => setHasInterestItems(true)}
-                  className={hasInterestItems ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  관심 있음
-                </Button>
-                <Button
-                  size="sm"
-                  variant={!hasInterestItems ? "default" : "outline"}
-                  onClick={() => setHasInterestItems(false)}
-                  className={!hasInterestItems ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
-                >
-                  관심 없음
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === TAB_HOME && <MyPortfolio hasAssets={hasAssets} />}
         {activeTab === TAB_ACCOUNT && (
           <AccountHistory accountState={accountState} setAccountState={setAccountState} />
         )}
-        {activeTab === TAB_INTEREST && <InterestList products={hasInterestItems ? undefined : []} />}
+        {activeTab === TAB_INTEREST && <InterestList />}
       </section>
     </main>
   )

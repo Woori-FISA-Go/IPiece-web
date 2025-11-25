@@ -11,9 +11,10 @@ interface InterestItemProps {
   product: InterestProduct
   isFavorite: boolean
   onToggleFavorite: (productId: string) => void
+  disabled?: boolean
 }
 
-export default function InterestItem({ product, isFavorite, onToggleFavorite }: InterestItemProps) {
+export default function InterestItem({ product, isFavorite, onToggleFavorite, disabled }: InterestItemProps) {
   const heartStyle = buildHeartMaskStyle(
     isFavorite ? "#F9595F" : "#D1D5DB", // Filled red if favorite, gray if not
     1
@@ -66,6 +67,7 @@ export default function InterestItem({ product, isFavorite, onToggleFavorite }: 
           onClick={() => onToggleFavorite(product.id)}
           className="hover:bg-transparent"
           aria-label={isFavorite ? "관심 해제" : "관심 추가"}
+          disabled={disabled}
         >
           <div style={heartStyle} />
         </Button>

@@ -27,12 +27,14 @@ export interface OrderBookProps {
 
 export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBookProps) {
   const sortedSells = [...ordersSell].sort((a, b) => b.price - a.price);
-  const sortedBuys = [...ordersBuy].sort((a, b) => a.price - b.price);
+  const sortedBuys = [...ordersBuy].sort((a, b) => b.price - a.price);
   const totalSell = sortedSells.reduce((acc, row) => acc + row.quantity, 0);
   const totalBuy = sortedBuys.reduce((acc, row) => acc + row.quantity, 0);
   const formatNumber = (value: number) => value.toLocaleString('ko-KR');
   const formatChange = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   const hasData = ordersSell.length > 0 || ordersBuy.length > 0;
+  const priceColor = (delta: number) =>
+    delta > 0 ? 'text-[#E53333]' : delta < 0 ? 'text-[#2563EB]' : 'text-slate-500';
 
   return (
     <Card className="flex h-full flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
@@ -74,10 +76,10 @@ export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBoo
                   {formatNumber(row.quantity)}
                 </span>
                 <span className="flex items-center justify-center gap-2">
-                  <span className="font-semibold text-[#E94651]">
+                  <span className={`font-semibold ${priceColor(row.changePct)}`}>
                     {formatNumber(row.price)}
                   </span>
-                  <span className="text-xs text-[#E94651]">
+                  <span className={`text-xs ${priceColor(row.changePct)}`}>
                     ({formatChange(row.changePct)})
                   </span>
                 </span>
@@ -98,10 +100,10 @@ export function OrderBook({ summary, ordersSell = [], ordersBuy = [] }: OrderBoo
                   —
                 </span>
                 <span className="flex items-center justify-center gap-2">
-                  <span className="font-semibold text-[#2675EB]">
+                  <span className={`font-semibold ${priceColor(row.changePct)}`}>
                     {formatNumber(row.price)}
                   </span>
-                  <span className="text-xs text-[#2675EB]">
+                  <span className={`text-xs ${priceColor(row.changePct)}`}>
                     ({formatChange(row.changePct)})
                   </span>
                 </span>
