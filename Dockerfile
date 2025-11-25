@@ -8,6 +8,11 @@ RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
+# [수정됨] GitHub Actions에서 --build-arg로 넘겨준 값을 받기 위한 설정
+# 이 부분이 없으면 pnpm build 할 때 환경변수가 들어가지 않습니다.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 COPY . .
 RUN pnpm build
 
