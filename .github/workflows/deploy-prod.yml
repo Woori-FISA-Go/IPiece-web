@@ -30,8 +30,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run build
-        run: pnpm build
+      # [삭제됨] Run build 단계는 도커 빌드와 중복되므로 제거했습니다.
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,8 +47,15 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          # [추가] Prod 환경의 ALB API 주소 (http:// 꼭 포함)
+          # 만약 Secrets로 관리 중이라면 ${{ secrets.PROD_API_URL }} 형태로 변경하세요.
+          API_URL: http://k8s-ipiece-27c2020024-347856893.ap-northeast-2.elb.amazonaws.com/api
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # [수정] --build-arg 옵션을 추가하여 도커 빌드 시점에 URL 주입
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=$API_URL \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
           # Prod는 근본있게 'latest' 태그를 가져갑니다
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG

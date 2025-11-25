@@ -30,11 +30,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run build
-        env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-        run: pnpm build
-
+      # [삭제됨] Run build 단계는 도커 빌드와 중복되므로 제거했습니다.
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -50,8 +47,14 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          # [추가] 시크릿에서 API URL을 가져와 환경변수로 세팅
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # [수정] --build-arg 옵션을 추가하여 도커 빌드 시점에 URL 주입
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=$API_URL \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
           # Dev용 이미지는 latest를 뺏지 않고 'dev-latest'라는 별도 태그를 씁니다 (안전장치)
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
