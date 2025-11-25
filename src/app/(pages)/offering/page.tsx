@@ -14,6 +14,7 @@ type ApiOfferingItem = {
   productName: string;
   owner: string;
   thumbnailImg?: string;
+  status?: 'OFFERING' | 'TRADE' | string;
   progressRate?: number;
   offeringStartDate?: string;
   offeringEndDate?: string;
@@ -294,17 +295,21 @@ export default function OfferingPage() {
 }
 
 function mapOfferingItem(item: ApiOfferingItem): OfferingListItem {
+  const derivedStatus = deriveOfferingStatus({
+    progressRate: item.progressRate,
+    offeringStartDate: item.offeringStartDate,
+    offeringEndDate: item.offeringEndDate,
+  });
+  const finalStatus: OfferingStatus =
+    item.status === 'TRADE' ? 'ENDED' : derivedStatus;
+
   return {
     id: item.productId.toString(),
     title: item.productName,
     author: item.owner || 'IPiece',
     priceKRW: item.offeringPrice,
     progressPct: item.progressRate ?? 0,
-    status: deriveOfferingStatus({
-      progressRate: item.progressRate,
-      offeringStartDate: item.offeringStartDate,
-      offeringEndDate: item.offeringEndDate,
-    }),
+    status: finalStatus,
     imageUrl: normalizeThumbnail(item.thumbnailImg) ?? '',
     liked: Boolean(item.isFavorite),
     startDate: item.offeringStartDate,
