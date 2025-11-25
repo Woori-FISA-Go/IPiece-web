@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import Logo from "../assets/Logo.png"
+import profilePicture from "@/assets/images/profile-picture.png"
 import { Button } from "../components/ui/button"
 import { ACCESS_TOKEN_KEY } from "@/lib/auth"
 import { useTopAssetThumbnail } from "@/app/(pages)/context/TopAssetContext"
@@ -17,7 +18,7 @@ type HeaderProps = {
 export function Header({ containerClassName }: HeaderProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const { thumbnail, setThumbnail } = useTopAssetThumbnail()
-  const avatarSrc = thumbnail || "https://i.pravatar.cc/28"
+  const avatarSrc = thumbnail || profilePicture.src
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const tab = searchParams?.get('tab')
