@@ -48,7 +48,8 @@ export default function MyPortfolio({
       return
     }
     const sorted = [...ratios].sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
-    const topThumb = sorted.find((item) => item.thumbnailImg)?.thumbnailImg ?? null
+    const topItem = sorted.find((item) => item.thumbnailImg || (item as { thumbnail_img?: string }).thumbnail_img)
+    const topThumb = topItem?.thumbnailImg ?? (topItem as { thumbnail_img?: string })?.thumbnail_img ?? null
     setThumbnail(topThumb ?? null)
   }, [data?.portfolio_ratio, setThumbnail])
 
