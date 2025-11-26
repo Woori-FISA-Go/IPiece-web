@@ -48,11 +48,11 @@ jobs:
       - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # Prod 환경의 ALB API 주소 (http:// 꼭 포함)
-          # 만약 Secrets로 관리 중이라면 ${{ secrets.PROD_API_URL }} 형태로 변경하세요.
-          API_URL: http://k8s-ipiece-27c2020024-347856893.ap-northeast-2.elb.amazonaws.com/api
+          # ✅ Repo Secret 에서 API URL 가져오기
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
           echo "Using IMAGE_TAG = $IMAGE_TAG"
+          echo "Using NEXT_PUBLIC_API_URL = $API_URL"
 
           # --build-arg 옵션으로 도커 빌드 시점에 URL 주입
           docker build \
