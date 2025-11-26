@@ -73,14 +73,11 @@ export default function NewContestPage() {
   })
   const [isTokenCreated, setIsTokenCreated] = useState(false)
   const [isCreatingToken, setIsCreatingToken] = useState(false)
-  const [tokenResult, setTokenResult] = useState<{
-    name?: string
-    symbol?: string
-    totalSupply?: number
-    faceValue?: number
-    contractAddress?: string
-    transactionHash?: string
-  } | null>(null)
+
+  const formatDateTimeLocal = (date: Date) => {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    return local.toISOString().slice(0, 16)
+  }
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { id, value } = event.target
@@ -255,22 +252,31 @@ export default function NewContestPage() {
         const symbol = data.symbol ?? payload.symbol
         const supply = data.totalSupply ?? payload.totalSupply
         const face = data.faceValue ?? payload.faceValue
+        const supplyStr =
+          typeof supply === 'number' && Number.isFinite(supply)
+            ? String(supply)
+            : payload.totalSupply
+              ? String(payload.totalSupply)
+              : formState.tokenQuantity
+        const faceStr =
+          typeof face === 'number' && Number.isFinite(face)
+            ? String(face)
+            : payload.faceValue
+              ? String(payload.faceValue)
+              : formState.issuePrice
         const contract = data.contractAddress ?? data.token_address ?? '-'
-        const txHash = data.transactionHash ?? data.tx_hash ?? '-'
-        setTokenResult({
-          name,
-          symbol,
-          totalSupply: supply,
-          faceValue: face,
-          contractAddress: contract,
-          transactionHash: txHash,
-        })
         setFormState((prev) => ({
           ...prev,
+          tokenName: name,
+          tokenSymbol: symbol,
+          tokenQuantity: supplyStr,
+          issuePrice: faceStr,
+          issueDate: formatDateTimeLocal(new Date()),
+          offeringPrice: faceStr,
+          offeringAmount: supplyStr,
           tokenContractAddress: contract,
         }))
         setIsTokenCreated(true)
-        setCreateTokenData({ name: '', symbol: '', total_supply: '', face_value: '' })
         return
       }
 
@@ -453,42 +459,6 @@ export default function NewContestPage() {
                   {isCreatingToken ? '생성 중...' : '프로젝트 토큰 생성'}
                 </Button>
               </div>
-              {tokenResult ? (
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-[#1A4DE5]">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">이름</span>
-                    <span className="font-semibold">{tokenResult.name ?? '-'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">심볼</span>
-                    <span className="font-semibold">{tokenResult.symbol ?? '-'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">발행량</span>
-                    <span className="font-semibold">
-                      {tokenResult.totalSupply?.toLocaleString() ?? '-'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-gray-600">1토큰 가격</span>
-                    <span className="font-semibold">
-                      {tokenResult.faceValue?.toLocaleString() ?? '-'}
-                    </span>
-                  </div>
-                  <div className="space-y-1 pt-2">
-                    <p className="text-gray-600">Contract Address</p>
-                    <p className="font-mono text-xs break-all text-[#1A4DE5]">
-                      {tokenResult.contractAddress ?? '-'}
-                    </p>
-                  </div>
-                  <div className="space-y-1 pt-2">
-                    <p className="text-gray-600">Transaction Hash</p>
-                    <p className="font-mono text-xs break-all text-[#1A4DE5]">
-                      {tokenResult.transactionHash ?? '-'}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
             </CardContent>
           </Card>
 
