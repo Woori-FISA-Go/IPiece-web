@@ -33,9 +33,9 @@ type FormState = {
   offeringAmount: string
   offeringStartDate: string
   offeringEndDate: string
-  presentImg: string | null
-  thumbnailImg: string | null
-  detailImg: string | null
+  presentImg: File | null
+  thumbnailImg: File | null
+  detailImg: File | null
 }
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR')
@@ -77,16 +77,11 @@ export default function NewContestPage() {
     event: ChangeEvent<HTMLInputElement>,
     key: keyof Pick<FormState, 'presentImg' | 'thumbnailImg' | 'detailImg'>,
   ) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      setFormState((prev) => ({
-        ...prev,
-        [key]: reader.result as string,
-      }))
-    }
-    reader.readAsDataURL(file)
+    const file = event.target.files?.[0] ?? null
+    setFormState((prev) => ({
+      ...prev,
+      [key]: file,
+    }))
   }
 
   const isOfferingQuantityMismatch = useMemo(() => {
@@ -147,14 +142,12 @@ export default function NewContestPage() {
         product_name: formState.productName,
         project_name: formState.projectName,
         owner: formState.owner,
-        issue_amount: offeringTotal,
         issue_date: formState.issueDate ? new Date(formState.issueDate).toISOString() : null,
+        issue_amount: offeringTotal,
+        token_quantity: Number(formState.tokenQuantity),
         token_name: formState.tokenName,
         token_symbol: formState.tokenSymbol,
-        token_quantity: Number(formState.tokenQuantity),
         dividend_ratio: Number(formState.dividendRatio) / 100,
-        present_img: formState.presentImg,
-        thumbnail_img: formState.thumbnailImg,
         offering: {
           offering_amount: Number(formState.offeringAmount),
           offering_price: Number(formState.offeringPrice),
@@ -164,15 +157,18 @@ export default function NewContestPage() {
           offering_end_date: formState.offeringEndDate
             ? new Date(formState.offeringEndDate).toISOString()
             : null,
-          detail_img: formState.detailImg,
-          status,
         },
       }
 
+      const formData = new FormData()
+      formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }))
+      if (formState.presentImg) formData.append('presentImg', formState.presentImg)
+      if (formState.thumbnailImg) formData.append('thumbnailImg', formState.thumbnailImg)
+      if (formState.detailImg) formData.append('detailImg', formState.detailImg)
+
       const res = await apiFetch('/v1/admin/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: formData,
       })
 
       if (!res.ok) {
