@@ -1,4 +1,4 @@
-﻿name: Frontend PROD CI/CD (Release Branch)
+name: Frontend PROD CI/CD (Release Branch)
 
 on:
   push:
@@ -89,16 +89,26 @@ jobs:
           echo "Before:"
           grep -i "ipiece-frontend" kustomization.yaml || true
 
-          # Kustomize로 이미지 태그 변경
-          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # (가능하면) Kustomize로 이미지 태그 변경 시도
+          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || true
 
           echo "After:"
           grep -i "ipiece-frontend" kustomization.yaml || true
 
-          # 커밋 & 푸시
+          # 루트로 올라가기
           cd ../../../..
+
+          # 🔥 핵심: 매 실행마다 항상 달라지는 트리거 파일 생성
+          #   → kustomize가 실제 변경을 못 하더라도, 이 파일 때문에 git diff는 무조건 생김
+          echo "trigger: $(date -u +%Y-%m-%dT%H:%M:%SZ), image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" > .deploy-trigger
+
+          echo "Git status / diff 확인:"
+          git status
+          git diff || true
+
+          # 커밋 & 푸시
           if git diff --quiet; then
-            echo "⭕ No changes to commit."
+            echo "⚠️ 여전히 변경이 없다면 뭔가 이상한 상황임 (이론상 거의 안 나와야 함)"
           else
             git add .
             git commit -m "chore(prod): update frontend image to ${IMAGE_TAG}"
