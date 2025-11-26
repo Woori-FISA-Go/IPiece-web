@@ -1,13 +1,15 @@
-﻿name: Frontend PROD CI/CD (Release Branch)
+name: Frontend PROD CI/CD (Release Branch)
 
 on:
   push:
-    branches: [ "release/**", "main" ] # 릴리즈 브랜치에 푸시될 때만 동작
+    branches: [ "release/**", "develop" ] # release/**, develop 브랜치 푸시 시 동작
   workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: ipiece-frontend
+  # 👇 실행마다 유니크한 태그 (커밋 SHA + run_number)
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_number }}
 
 jobs:
   build-and-push:
@@ -46,17 +48,18 @@ jobs:
       - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-          # [추가] Prod 환경의 ALB API 주소 (http:// 꼭 포함)
-          # 만약 Secrets로 관리 중이라면 ${{ secrets.PROD_API_URL }} 형태로 변경하세요.
-          API_URL: http://k8s-ipiece-27c2020024-347856893.ap-northeast-2.elb.amazonaws.com/api
+          # ✅ Repo Secret 에서 API URL 가져오기
+          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
-          # [수정] --build-arg 옵션을 추가하여 도커 빌드 시점에 URL 주입
+          echo "Using IMAGE_TAG = $IMAGE_TAG"
+          echo "Using NEXT_PUBLIC_API_URL = $API_URL"
+
+          # --build-arg 옵션으로 도커 빌드 시점에 URL 주입
           docker build \
             --build-arg NEXT_PUBLIC_API_URL=$API_URL \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          
-          # Prod는 근본있게 'latest' 태그를 가져갑니다
+
+          # Prod는 'latest' 태그도 같이 관리
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -67,7 +70,6 @@ jobs:
       - name: Update manifests repo (Prod Overlay)
         env:
           GIT_TOKEN: ${{ secrets.MANIFESTS_REPO_TOKEN }}
-          IMAGE_TAG: ${{ github.sha }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
@@ -80,16 +82,33 @@ jobs:
           # 매니페스트 레포 Clone (develop 브랜치)
           git clone -b develop https://github.com/Woori-FISA-Go/ipiece-manifests.git
           
-          # ★ 핵심: Prod 오버레이 폴더로 이동
+          # Prod 오버레이 폴더로 이동
           cd ipiece-manifests/apps/frontend/overlays/prod
 
-          # Kustomize로 이미지 태그 변경
-          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Applying IMAGE_TAG = $IMAGE_TAG to kustomization.yaml"
+          echo "Before:"
+          grep -i "ipiece-frontend" kustomization.yaml || true
+
+          # (가능하면) Kustomize로 이미지 태그 변경 시도
+          kustomize edit set image ipiece-frontend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || true
+
+          echo "After:"
+          grep -i "ipiece-frontend" kustomization.yaml || true
+
+          # 루트로 올라가기
+          cd ../../../..
+
+          # 🔥 핵심: 매 실행마다 항상 달라지는 트리거 파일 생성
+          #   → kustomize가 실제 변경을 못 하더라도, 이 파일 때문에 git diff는 무조건 생김
+          echo "trigger: $(date -u +%Y-%m-%dT%H:%M:%SZ), image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" > .deploy-trigger
+
+          echo "Git status / diff 확인:"
+          git status
+          git diff || true
 
           # 커밋 & 푸시
-          cd ../../../..
           if git diff --quiet; then
-            echo "⭕ No changes to commit."
+            echo "⚠️ 여전히 변경이 없다면 뭔가 이상한 상황임 (이론상 거의 안 나와야 함)"
           else
             git add .
             git commit -m "chore(prod): update frontend image to ${IMAGE_TAG}"
