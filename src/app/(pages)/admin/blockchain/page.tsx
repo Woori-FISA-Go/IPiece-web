@@ -30,16 +30,15 @@ import { apiFetch } from '@/lib/api-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface TokenInfo {
-  contract_address: string;
   name: string;
   symbol: string;
-  total_supply: number;
-  decimals: number;
-  owner: string;
-  dividend_contract: string;
-  holders_count: number;
-  total_transferred: number;
-  deployed_at: string;
+  totalSupply: number;
+  faceValue: number;
+  ownerUserId: number;
+  contractAddress: string;
+  status: string;
+  transactionHash: string;
+  createdAt: string;
 }
 
 interface Transaction {
@@ -209,11 +208,17 @@ export default function BlockchainPage() {
   };
 
   const handleFetchTokenInfo = async () => {
+    if (!tokenAddress.trim()) {
+      alert('조회할 컨트랙트 주소를 입력해주세요.');
+      return;
+    }
     try {
-      const response = await fetch(
-        `/v1/admin/blockchain/tokens/${tokenAddress}`,
-      );
-      const data = await response.json();
+      const response = await apiFetch(`/v1/blockchain/tokens/${tokenAddress.trim()}`);
+      if (!response.ok) {
+        alert(`토큰 정보 조회에 실패했습니다. (status: ${response.status})`);
+        return;
+      }
+      const data = (await response.json()) as TokenInfo;
       setTokenInfo(data);
     } catch (error) {
       alert('토큰 정보 조회에 실패했습니다.');
@@ -447,65 +452,49 @@ export default function BlockchainPage() {
                 <div className="border rounded-lg p-6 space-y-4 bg-muted/50">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <Label className="text-xs text-muted-foreground">
-                        토큰 이름
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">토큰 이름</Label>
                       <p className="font-semibold mt-1">{tokenInfo.name}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">
-                        토큰 심볼
-                      </Label>
-                      <p className="font-semibold mt-1">{tokenInfo.symbol}</p>
+                      <Label className="text-xs text-muted-foreground">토큰 심볼</Label>
+                      <p className="font-semibold mt-1 text-blue-600">{tokenInfo.symbol}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">
-                        총 발행량
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">총 발행량</Label>
                       <p className="font-semibold mt-1">
-                        {tokenInfo.total_supply.toLocaleString()}
+                        {tokenInfo.totalSupply.toLocaleString()}
                       </p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">
-                        보유자 수
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">1토큰 가격</Label>
                       <p className="font-semibold mt-1">
-                        {tokenInfo.holders_count}
+                        {tokenInfo.faceValue.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">소유자 사용자 ID</Label>
+                      <p className="font-semibold mt-1">{tokenInfo.ownerUserId}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">상태</Label>
+                      <p className="font-semibold mt-1">{tokenInfo.status}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs text-muted-foreground">Contract Address</Label>
+                      <p className="font-mono text-sm mt-1 break-all bg-blue-50 rounded-md px-2 py-1 text-blue-700">
+                        {tokenInfo.contractAddress}
                       </p>
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        컨트랙트 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {tokenInfo.contract_address}
+                      <Label className="text-xs text-muted-foreground">Transaction Hash</Label>
+                      <p className="font-mono text-sm mt-1 break-all bg-blue-50 rounded-md px-2 py-1 text-blue-700">
+                        {tokenInfo.transactionHash}
                       </p>
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        배당 컨트랙트 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {tokenInfo.dividend_contract}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        총 전송량
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">생성 시각</Label>
                       <p className="font-semibold mt-1">
-                        {tokenInfo.total_transferred.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        배포 시각
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {new Date(tokenInfo.deployed_at).toLocaleString(
-                          'ko-KR',
-                        )}
+                        {new Date(tokenInfo.createdAt).toLocaleString('ko-KR')}
                       </p>
                     </div>
                   </div>
