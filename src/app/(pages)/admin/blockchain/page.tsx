@@ -27,6 +27,7 @@ import {
   ArrowDownCircle,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface TokenInfo {
   contract_address: string;
@@ -84,7 +85,9 @@ export default function BlockchainPage() {
   // 토큰 생성
   const [createTokenData, setCreateTokenData] = useState({
     name: '',
+    symbol: '',
     total_supply: '',
+    face_value: '',
   });
 
   // KRWT 소각
@@ -120,6 +123,16 @@ export default function BlockchainPage() {
     wallet_address: '',
   });
 
+  const [tokenModal, setTokenModal] = useState<{
+    open: boolean;
+    name?: string;
+    symbol?: string;
+    totalSupply?: number;
+    faceValue?: number;
+    contractAddress?: string;
+    transactionHash?: string;
+  }>({ open: false });
+
   useEffect(() => {
     fetchContracts();
   }, []);
@@ -140,17 +153,56 @@ export default function BlockchainPage() {
   };
 
   const handleCreateToken = async () => {
+    const totalSupplyNum = Number(createTokenData.total_supply);
+    const faceValueNum = Number(createTokenData.face_value);
+    const payload = {
+      name: createTokenData.name.trim(),
+      symbol: createTokenData.symbol.toUpperCase().trim(),
+      totalSupply: Number.isFinite(totalSupplyNum) ? totalSupplyNum : 0,
+      faceValue: Number.isFinite(faceValueNum) ? faceValueNum : 0,
+    };
+
+    if (!payload.name || !payload.symbol || !payload.totalSupply || !payload.faceValue) {
+      alert('이름, 심볼, 총 발행량, 1토큰 가격을 모두 입력해주세요.');
+      return;
+    }
+
     try {
-      const response = await fetch('/v1/admin/blockchain/tokens', {
+      const response = await apiFetch('/v1/blockchain/tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(createTokenData),
+        body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      alert(
-        `토큰이 생성되었습니다!\nProject ID: ${data.project_id}\nToken Address: ${data.token_address}`,
-      );
-      setCreateTokenData({ name: '', total_supply: '' });
+
+      if (response.ok) {
+        const data = await response.json();
+        const name = data.name ?? payload.name;
+        const symbol = data.symbol ?? payload.symbol;
+        const supply = data.totalSupply ?? payload.totalSupply;
+        const face = data.faceValue ?? payload.faceValue;
+        const contract = data.contractAddress ?? data.token_address ?? '-';
+        const txHash = data.transactionHash ?? data.tx_hash ?? '-';
+        setTokenModal({
+          open: true,
+          name,
+          symbol,
+          totalSupply: supply,
+          faceValue: face,
+          contractAddress: contract,
+          transactionHash: txHash,
+        });
+        setCreateTokenData({ name: '', symbol: '', total_supply: '', face_value: '' });
+        return;
+      }
+
+      let message = '토큰 생성에 실패했습니다.';
+      try {
+        const err = await response.json();
+        message = err?.detail ?? err?.message ?? message;
+      } catch {
+        /* ignore */
+      }
+      alert(`${message} (status: ${response.status})`);
     } catch (error) {
       alert('토큰 생성에 실패했습니다.');
     }
@@ -552,45 +604,83 @@ export default function BlockchainPage() {
                 새로운 프로젝트 토큰을 블록체인에 배포합니다.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="token-name">토큰 이름 *</Label>
-                <Input
-                  id="token-name"
-                  placeholder="NewProjectToken"
-                  value={createTokenData.name}
-                  onChange={(e) =>
-                    setCreateTokenData({
-                      ...createTokenData,
-                      name: e.target.value,
-                    })
-                  }
-                  maxLength={100}
-                />
-                <p className="text-xs text-muted-foreground">최대 100자</p>
-              </div>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="token-name">토큰 이름 *</Label>
+                  <Input
+                    id="token-name"
+                    placeholder="NewProjectToken"
+                    value={createTokenData.name}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        name: e.target.value,
+                      })
+                    }
+                    maxLength={100}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">최대 100자</p>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="total-supply">총 발행량 *</Label>
-                <Input
-                  id="total-supply"
-                  type="number"
+                <div className="space-y-2">
+                  <Label htmlFor="token-symbol">토큰 심볼 *</Label>
+                  <Input
+                    id="token-symbol"
+                    placeholder="TKN"
+                    value={createTokenData.symbol}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        symbol: e.target.value.toUpperCase(),
+                      })
+                    }
+                    maxLength={10}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">영문 대문자 권장</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="total-supply">총 발행량 *</Label>
+                  <Input
+                    id="total-supply"
+                    type="number"
                   placeholder="100000"
                   value={createTokenData.total_supply}
-                  onChange={(e) =>
-                    setCreateTokenData({
-                      ...createTokenData,
-                      total_supply: e.target.value,
-                    })
-                  }
-                  min={1}
-                />
-                <p className="text-xs text-muted-foreground">최소 1 이상</p>
-              </div>
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        total_supply: e.target.value,
+                      })
+                    }
+                    min={1}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">최소 1 이상</p>
+                </div>
 
-              <Button onClick={handleCreateToken} className="w-full" size="lg">
-                <Plus className="h-4 w-4 mr-2" />
-                토큰 생성
+                <div className="space-y-2">
+                  <Label htmlFor="face-value">1토큰 당 가격 (faceValue) *</Label>
+                  <Input
+                    id="face-value"
+                    type="number"
+                    placeholder="예: 1000"
+                    value={createTokenData.face_value}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        face_value: e.target.value,
+                      })
+                    }
+                    min={0}
+                    required
+                  />
+                </div>
+
+                <Button onClick={handleCreateToken} className="w-full" size="lg">
+                  <Plus className="h-4 w-4 mr-2" />
+                  토큰 생성
               </Button>
             </CardContent>
           </Card>
@@ -1027,6 +1117,54 @@ export default function BlockchainPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={tokenModal.open} onOpenChange={(open) => setTokenModal((prev) => ({ ...prev, open }))}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>토큰 생성 완료</DialogTitle>
+            <DialogDescription>새로운 프로젝트 토큰이 발행되었습니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">이름</span>
+              <span className="font-semibold text-blue-600">{tokenModal.name ?? '-'}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">심볼</span>
+              <span className="font-semibold text-blue-600">{tokenModal.symbol ?? '-'}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">발행량</span>
+              <span className="font-semibold">
+                {tokenModal.totalSupply?.toLocaleString() ?? '-'}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">1토큰 가격</span>
+              <span className="font-semibold">
+                {tokenModal.faceValue?.toLocaleString() ?? '-'}
+              </span>
+            </div>
+            <div className="space-y-2 rounded-lg bg-blue-50 p-3 border border-blue-100">
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Contract Address</p>
+                <p className="font-mono text-xs break-all text-blue-700">
+                  {tokenModal.contractAddress ?? '-'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Transaction Hash</p>
+                <p className="font-mono text-xs break-all text-blue-700">
+                  {tokenModal.transactionHash ?? '-'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setTokenModal({ open: false })}>확인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
