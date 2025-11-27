@@ -40,9 +40,9 @@ function formatDate(value?: string) {
 
 function getJournalLabel(txType?: string) {
   const key = (txType ?? "").toUpperCase()
-  if (key === "DEPOSIT" || key === "TRADE_SELL") return { text: "입금 완료", theme: "positive" }
+  if (key === "DEPOSIT" || key === "TRADE_SELL") return { text: "입금 처리", theme: "positive" }
   if (key === "WITHDRAW" || key === "TRADE_BUY" || key === "OFFERING_BUY")
-    return { text: "출금 완료", theme: "negative" }
+    return { text: "출금 처리", theme: "negative" }
   if (key === "DIVIDEND") return { text: "배당", theme: "positive" }
   return { text: "거래", theme: "neutral" }
 }
@@ -109,12 +109,12 @@ export default function AccountDepositPanel({
   if (accountState === "noAccount") {
     const displayName = userName || "회원"
     return (
-      <div className="space-y-4">
+      <div className="flex h-full flex-col space-y-4">
         <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
-        <Card className="flex flex-col items-center gap-4 border border-gray-200 px-6 py-10 text-center">
+        <Card className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 border border-gray-200 px-6 py-10 text-center">
           <Image src={walletIcon} alt="가상계좌 없음" width={56} height={56} />
           <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{displayName}</span>님, 가상계좌를 생성하고 거래를 시작해 보세요.
+            <span className="font-semibold text-gray-900">{displayName}</span>님 가상계좌를 생성하고 거래를 시작해 보세요.
           </p>
           <Button
             className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]"
@@ -130,10 +130,10 @@ export default function AccountDepositPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col space-y-4">
       <h2 className="text-lg font-bold text-gray-900">가상계좌 입출금 내역</h2>
 
-      <Card className="flex flex-col border border-gray-200 p-6">
+      <Card className="flex h-full min-h-[320px] flex-col border border-gray-200 p-6">
         {summary ? (
           <div className="mb-6 space-y-3 border-b border-gray-200 pb-6">
             <div className="flex items-center justify-between text-sm text-gray-500">
@@ -141,14 +141,14 @@ export default function AccountDepositPanel({
               <span className="font-medium text-gray-900">{summary.accountNo ?? "-"}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">보유 잔액</span>
+              <span className="text-gray-600">보유 금액</span>
               <span className="text-lg font-bold text-gray-900">
                 {numberFormatter.format(summary.totalBalance ?? summary.totalPrice ?? summary.balanceKrw ?? 0)}{" "}
                 <span className="text-xs font-normal text-gray-500">KRW</span>
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">거래 대기금</span>
+              <span className="text-gray-600">거래 예치금</span>
               <span className="text-lg font-bold text-gray-900">
                 {numberFormatter.format(summary.pendingPrice ?? 0)}{" "}
                 <span className="text-xs font-normal text-gray-500">KRW</span>
@@ -176,42 +176,44 @@ export default function AccountDepositPanel({
           ))}
         </div>
 
-        {isLoading ? (
-          <div className="flex flex-1 items-center justify-center py-12 text-sm text-gray-500">
-            입출금 내역을 불러오는 중입니다.
-          </div>
-        ) : error ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-red-500">
-            {error}
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-gray-500">
-            조회된 입출금 내역이 없습니다.
-          </div>
-        ) : (
-          <div className="flex max-h-[400px] flex-col gap-4 overflow-y-auto">
-            {filteredItems.map((item) => {
-              const journalLabel = getJournalLabel(item.txType)
-              const amountValue = item.amountKrw ?? 0
-              const amountClass =
-                journalLabel.theme === "positive"
-                  ? "text-blue-500"
-                  : journalLabel.theme === "negative"
-                    ? "text-red-500"
-                    : "text-gray-800"
-              return (
-                <div key={item.id} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0">
-                  <div>
-                    <div className="text-xs text-gray-500">{formatDate(item.createdAt)}</div>
-                    <div className="text-sm font-medium text-gray-900">{journalLabel.text}</div>
-                    {item.description ? <div className="text-xs text-gray-500">{item.description}</div> : null}
+        <div className="flex-1">
+          {isLoading ? (
+            <div className="flex flex-1 items-center justify-center py-12 text-sm text-gray-500">
+              입출금 내역을 불러오는 중입니다.
+            </div>
+          ) : error ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-red-500">
+              {error}
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-sm text-gray-500">
+              조회된 입출금 내역이 없습니다.
+            </div>
+          ) : (
+            <div className="flex h-full max-h-[400px] flex-col gap-4 overflow-y-auto">
+              {filteredItems.map((item) => {
+                const journalLabel = getJournalLabel(item.txType)
+                const amountValue = item.amountKrw ?? 0
+                const amountClass =
+                  journalLabel.theme === "positive"
+                    ? "text-blue-500"
+                    : journalLabel.theme === "negative"
+                      ? "text-red-500"
+                      : "text-gray-800"
+                return (
+                  <div key={item.id} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0">
+                    <div>
+                      <div className="text-xs text-gray-500">{formatDate(item.createdAt)}</div>
+                      <div className="text-sm font-medium text-gray-900">{journalLabel.text}</div>
+                      {item.description ? <div className="text-xs text-gray-500">{item.description}</div> : null}
+                    </div>
+                    <div className={`text-sm font-semibold ${amountClass}`}>{formatAmount(amountValue)}</div>
                   </div>
-                  <div className={`text-sm font-semibold ${amountClass}`}>{formatAmount(amountValue)}</div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   )

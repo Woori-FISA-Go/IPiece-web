@@ -1,6 +1,6 @@
-"use client"
+﻿"use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import UserProfileCard from "@/components/mypage/UserProfileCard"
 import PortfolioPieChart from "@/components/mypage/PortfolioPieChart"
@@ -10,6 +10,7 @@ import type { MyHomeResponse } from "@/components/mypage/types"
 import walletIcon from "@/assets/images/wallet_icon.svg"
 import { Button } from "@/components/ui/button"
 import { useTopAssetThumbnail } from "@/app/(pages)/context/TopAssetContext"
+import { apiFetch } from "@/lib/api-client"
 
 interface MyPortfolioProps {
   data?: MyHomeResponse | null
@@ -37,6 +38,8 @@ export default function MyPortfolio({
   noAccountUser,
 }: MyPortfolioProps) {
   const { setThumbnail } = useTopAssetThumbnail()
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
     const ratios = data?.portfolio_ratio ?? []
@@ -45,7 +48,8 @@ export default function MyPortfolio({
       return
     }
     const sorted = [...ratios].sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
-    const topThumb = sorted.find((item) => item.thumbnailImg)?.thumbnailImg ?? null
+    const topItem = sorted.find((item) => item.thumbnailImg || (item as { thumbnail_img?: string }).thumbnail_img)
+    const topThumb = topItem?.thumbnailImg ?? (topItem as { thumbnail_img?: string })?.thumbnail_img ?? null
     setThumbnail(topThumb ?? null)
   }, [data?.portfolio_ratio, setThumbnail])
 
@@ -58,14 +62,50 @@ export default function MyPortfolio({
   }
 
   if (noAccountUser) {
-    const displayName = noAccountUser || "회원"
+    const displayName = noAccountUser || "회원님"
+
+    const handleCreateAccount = async () => {
+      if (isCreatingAccount) return
+      setCreateError(null)
+      setIsCreatingAccount(true)
+      try {
+        const res = await apiFetch("/v1/mypage/account", { method: "POST" })
+        if (!res.ok) {
+          const clone = res.clone()
+          let message: string | undefined
+          try {
+            const payload = (await clone.json()) as { detail?: string; message?: string }
+            message = payload.detail || payload.message
+          } catch {
+            /* ignore parse errors */
+          }
+          throw new Error(message || "가상계좌를 생성하지 못했습니다.")
+        }
+        // 성공 시 새 데이터 로드를 위해 페이지를 새로고침합니다.
+        window.location.reload()
+      } catch (error) {
+        setCreateError(
+          error instanceof Error ? error.message : "가상계좌 생성에 실패했습니다.",
+        )
+      } finally {
+        setIsCreatingAccount(false)
+      }
+    }
+
     return (
       <div className="flex flex-col items-center justify-center gap-6 rounded-lg border border-gray-200 bg-white px-6 py-12 text-center">
-        <Image src={walletIcon} alt="가상계좌 생성 필요" width={56} height={56} />
+        <Image src={walletIcon} alt="가상계좌 생성 안내" width={56} height={56} />
         <p className="text-sm text-gray-700">
-          <span className="font-semibold text-gray-900">{displayName}</span>님, 가상 계좌를 생성하고 거래를 시작해보세요.
+          <span className="font-semibold text-gray-900">{displayName}</span> 가상계좌를 생성하고 거래를 시작해 보세요.
         </p>
-        <Button className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]">가상계좌 생성하기</Button>
+        <Button
+          className="h-11 rounded-lg bg-[#3386E5] px-6 text-white hover:bg-[#2a75d0]"
+          onClick={handleCreateAccount}
+          disabled={isCreatingAccount}
+        >
+          {isCreatingAccount ? "생성 중..." : "가상계좌 생성하기"}
+        </Button>
+        {createError ? <p className="text-xs text-red-500">{createError}</p> : null}
       </div>
     )
   }

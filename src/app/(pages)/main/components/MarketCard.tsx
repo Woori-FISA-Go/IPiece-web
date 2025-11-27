@@ -22,6 +22,7 @@ const allowedRemoteHosts = new Set([
   "cdn.huffingtonpost.kr",
   "i.pinimg.com",
   "github.com",
+  "ipiece-image.s3.ap-northeast-2.amazonaws.com",
 ])
 
 const apiHost = (() => {

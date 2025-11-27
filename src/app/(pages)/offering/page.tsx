@@ -1,4 +1,4 @@
-'use client';
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -74,7 +74,11 @@ export default function OfferingPage() {
         setIsLoadingMore(true);
       } else {
         setIsLoading(true);
+        setToastMessage(null);
       }
+
+      const baseError = '공모 목록을 불러오지 못했습니다.';
+      const appendError = '추가 공모 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
 
       try {
         const token = getAccessToken();
@@ -84,7 +88,20 @@ export default function OfferingPage() {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!res.ok) {
-          throw new Error('공모 목록을 불러오지 못했습니다.');
+          let message = append ? appendError : baseError;
+          try {
+            const err = (await res.json()) as { detail?: string; message?: string };
+            message = err.detail || err.message || message;
+          } catch {
+            /* ignore parse errors */
+          }
+          if (!append) {
+            setItems([]);
+            setToastMessage(message);
+          } else {
+            setHasNext(false);
+          }
+          return;
         }
         const data = (await res.json()) as OfferingListResponse;
         const mapped = (data.items || []).map(mapOfferingItem);
@@ -97,15 +114,16 @@ export default function OfferingPage() {
           ongoing: data.ingCount ?? null,
           ended: data.afterCount ?? null,
         });
+        setToastMessage(null);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           console.error('Failed to fetch offerings', error);
           if (!append) {
             setItems([]);
+            setToastMessage(error instanceof Error ? error.message : baseError);
+          } else {
+            setHasNext(false);
           }
-          setToastMessage(
-            error instanceof Error ? error.message : '공모 목록을 불러오지 못했습니다.',
-          );
         }
       } finally {
         if (append) {
@@ -182,7 +200,7 @@ export default function OfferingPage() {
   const handleFavoriteToggle = async (productId: string, nextLiked: boolean) => {
     const token = getAccessToken();
     if (!token) {
-      setToastMessage('로그인이 필요한 서비스입니다.');
+      setToastMessage('로그인이 필요합니다. 먼저 로그인해 주세요.');
       return false;
     }
 
