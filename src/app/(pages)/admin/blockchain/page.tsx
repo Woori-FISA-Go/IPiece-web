@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -15,31 +15,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Coins,
   Factory,
   Send,
   UserPlus,
   Search,
-  Plus,
   Wallet,
   FileText,
   ArrowUpCircle,
   ArrowDownCircle,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  ChevronLeft,
+  Copy,
+  Check,
+  X,
+  Banknote,
+  Flame,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
-
-interface TokenInfo {
-  contract_address: string;
-  name: string;
-  symbol: string;
-  total_supply: number;
-  decimals: number;
-  owner: string;
-  dividend_contract: string;
-  holders_count: number;
-  total_transferred: number;
-  deployed_at: string;
-}
+import { useToast } from '@/hooks/use-toast';
 
 interface Transaction {
   hash: string;
@@ -72,19 +76,92 @@ type ContractsResponse = {
   }>;
 };
 
+type TokenListItem = {
+  name: string;
+  symbol: string;
+  totalSupply: number;
+  faceValue: number;
+  ownerUserId: number;
+  contractAddress: string;
+  status: string;
+  transactionHash: string;
+  createdAt: string;
+};
+
+type TokenListResponse = {
+  tokens: TokenListItem[];
+  totalPages: number;
+  totalElements: number;
+  currentPage: number;
+  pageSize: number;
+};
+
+type TransactionListItem = {
+  tx_id: number;
+  tx_hash: string;
+  status: string;
+  tx_type: string;
+  amount: number;
+};
+
+type TransactionListResponse = {
+  items: TransactionListItem[];
+  page: number;
+  page_size: number;
+  total_count: number;
+};
+
+const getStatusStyle = (status?: string) => {
+  if (status === 'DEPLOYED') return 'bg-transparent text-blue-700 border-0';
+  if (status === 'PENDING')
+    return 'bg-amber-100 text-amber-700 border border-amber-200';
+  return 'bg-slate-100 text-slate-700 border border-slate-200';
+};
+
+const TxStatusIcon = ({ status }: { status: string }) => {
+  const isSuccess = status?.toLowerCase() === 'success';
+  const base =
+    'h-6 w-6 rounded-full flex items-center justify-center border -mr-1';
+  const successCls = `${base} bg-emerald-100 border-emerald-200 text-emerald-700`;
+  const failCls = `${base} bg-rose-100 border-rose-200 text-rose-700`;
+  return isSuccess ? (
+    <div className={successCls}>
+      <Check className="h-4 w-4" />
+    </div>
+  ) : (
+    <div className={failCls}>
+      <X className="h-4 w-4" />
+    </div>
+  );
+};
+
 export default function BlockchainPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [tokenAddress, setTokenAddress] = useState('');
-  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const { toast } = useToast();
   const [txHash, setTxHash] = useState('');
   const [txInfo, setTxInfo] = useState<Transaction | null>(null);
   const [contracts, setContracts] = useState<ContractsResponse | null>(null);
   const [contractsLoading, setContractsLoading] = useState(false);
-
-  // 토큰 생성
-  const [createTokenData, setCreateTokenData] = useState({
-    name: '',
-    total_supply: '',
+  const [showContracts, setShowContracts] = useState(false);
+  const [tokenList, setTokenList] = useState<TokenListItem[]>([]);
+  const [tokenPage, setTokenPage] = useState(0);
+  const [tokenHasMore, setTokenHasMore] = useState(true);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const tokenListContainerRef = useRef<HTMLDivElement | null>(null);
+  const TOKEN_PAGE_SIZE = 2;
+  const [txList, setTxList] = useState<TransactionListItem[]>([]);
+  const [txListLoading, setTxListLoading] = useState(false);
+  const [resultModal, setResultModal] = useState<{
+    open: boolean
+    message: string
+    isError?: boolean
+    action?: 'mint' | 'burn'
+  }>({
+    open: false,
+    message: '',
+    isError: false,
+    action: undefined,
   });
 
   // KRWT 소각
@@ -122,7 +199,14 @@ export default function BlockchainPage() {
 
   useEffect(() => {
     fetchContracts();
+    fetchTokenList(0, true);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'transaction' && !txList.length) {
+      fetchTransactionList();
+    }
+  }, [activeTab]);
 
   const fetchContracts = async () => {
     try {
@@ -139,76 +223,211 @@ export default function BlockchainPage() {
     }
   };
 
-  const handleCreateToken = async () => {
+  const fetchTokenList = async (page: number, replace = false) => {
+    if (tokenLoading || (!tokenHasMore && !replace)) return;
     try {
-      const response = await fetch('/v1/admin/blockchain/tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(createTokenData),
-      });
-      const data = await response.json();
-      alert(
-        `토큰이 생성되었습니다!\nProject ID: ${data.project_id}\nToken Address: ${data.token_address}`,
+      setTokenLoading(true);
+      const res = await apiFetch(
+        `/v1/admin/blockchain/tokens?page=${page}&size=${TOKEN_PAGE_SIZE}&sort=createdAt,DESC`,
       );
-      setCreateTokenData({ name: '', total_supply: '' });
+      if (!res.ok) throw new Error(`token list ${res.status}`);
+      const data = (await res.json()) as TokenListResponse;
+      const nextPage = (data.currentPage ?? page) + 1;
+      const mapped =
+        data.tokens?.map((token, idx) => {
+          const fallback =
+            (token as any)?.address ??
+            token.contractAddress ??
+            token.transactionHash ??
+            `token-${token.symbol ?? 'unknown'}-${page}-${idx}`;
+          return {
+            ...token,
+            conAddress: (token as any)?.conAddress ?? token.contractAddress ?? fallback,
+          };
+        }) ?? [];
+      setTokenList((prev) => (replace ? mapped : [...prev, ...mapped]));
+      setTokenPage(nextPage);
+      const totalPages = data.totalPages ?? 0;
+      setTokenHasMore(nextPage < totalPages);
     } catch (error) {
-      alert('토큰 생성에 실패했습니다.');
+      console.error('Failed to fetch token list', error);
+      if (replace) setTokenList([]);
+      setTokenHasMore(false);
+    } finally {
+      setTokenLoading(false);
     }
   };
 
-  const handleFetchTokenInfo = async () => {
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    const root = tokenListContainerRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && tokenHasMore && !tokenLoading) {
+          fetchTokenList(tokenPage);
+        }
+      },
+      { root, rootMargin: '200px' },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [tokenPage, tokenHasMore, tokenLoading]);
+
+  const fetchTransactionList = async () => {
     try {
-      const response = await fetch(
-        `/v1/admin/blockchain/tokens/${tokenAddress}`,
+      setTxListLoading(true);
+      const res = await apiFetch(
+        '/v1/admin/blockchain/transactions?page=1&page_size=50',
       );
-      const data = await response.json();
-      setTokenInfo(data);
+      if (!res.ok) throw new Error(`transactions ${res.status}`);
+      const data = (await res.json()) as TransactionListResponse;
+      setTxList(data.items ?? []);
     } catch (error) {
-      alert('토큰 정보 조회에 실패했습니다.');
+      console.error('Failed to fetch transaction list', error);
+      setTxList([]);
+    } finally {
+      setTxListLoading(false);
+    }
+  };
+
+  const copyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash);
+      toast({
+        title: '해시가 복사되었습니다.',
+        description: hash,
+      });
+    } catch {
+      toast({
+        title: '복사 실패',
+        description: '클립보드 복사 중 문제가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: '복사되었습니다.',
+        description: text,
+      });
+    } catch {
+      toast({
+        title: '복사 실패',
+        description: '클립보드 복사 중 문제가 발생했습니다.',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleBurnKRWT = async () => {
-    try {
-      const response = await fetch('/v1/admin/blockchain/krwt/burn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(burnData),
+    const userIdNum = Number(burnData.user_id);
+    const amountNum = Number(burnData.amount);
+    if (!userIdNum || !amountNum) {
+      setResultModal({
+        open: true,
+        isError: true,
+        message: '유저 ID와 금액을 모두 입력해 주세요.',
       });
-      const data = await response.json();
-      alert(
-        `KRWT가 소각되었습니다!\nTx: ${data.transaction_hash}\n이전 잔고: ${data.previous_balance}\n새 잔고: ${data.new_balance}`,
-      );
+      return;
+    }
+    try {
+      const payload = {
+        userId: userIdNum,
+        amount: amountNum,
+        memo: burnData.memo,
+      };
+      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/burn', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.message || `status ${response.status}`);
+      }
+      setResultModal({
+        open: true,
+        isError: false,
+        action: 'burn',
+        message: `유저 ${payload.userId}번의 ${payload.amount}원이 소각 되었습니다.`,
+      });
       setBurnData({
         user_id: '',
-        wallet_address: '',
         amount: '',
-        withdrawal_request_id: '',
         memo: '',
       });
     } catch (error) {
-      alert('KRWT 소각에 실패했습니다.');
+      setResultModal({
+        open: true,
+        isError: true,
+        message:
+          error instanceof Error
+            ? `소각 실패: ${error.message}`
+            : 'KRWT 소각 중 오류가 발생했습니다.',
+      });
     }
   };
 
   const handleMintKRWT = async () => {
-    try {
-      const response = await fetch('/v1/admin/blockchain/krwt/mint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mintData),
+    const userIdNum = Number(mintData.user_id);
+    const amountNum = Number(mintData.amount);
+    if (!userIdNum || !amountNum) {
+      setResultModal({
+        open: true,
+        isError: true,
+        message: '유저 ID와 금액을 모두 입력해 주세요.',
       });
-      const data = await response.json();
-      alert(`KRWT가 발행되었습니다!\nTx: ${data.transaction_hash}`);
+      return;
+    }
+    try {
+      const payload = {
+        userId: userIdNum,
+        amount: amountNum,
+        memo: mintData.memo,
+      };
+      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/mint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.message || `status ${response.status}`);
+      }
+      setResultModal({
+        open: true,
+        isError: false,
+        action: 'mint',
+        message: `유저 ${payload.userId}번에게 ${payload.amount}원이 입금 되었습니다.`,
+      });
       setMintData({
         user_id: '',
-        wallet_address: '',
         amount: '',
-        bank_transaction_id: '',
         memo: '',
       });
     } catch (error) {
-      alert('KRWT 발행에 실패했습니다.');
+      setResultModal({
+        open: true,
+        isError: true,
+        message:
+          error instanceof Error
+            ? `발행 실패: ${error.message}`
+            : 'KRWT 발행 중 오류가 발생했습니다.',
+      });
     }
   };
 
@@ -248,14 +467,43 @@ export default function BlockchainPage() {
   };
 
   const handleFetchTransaction = async () => {
+    if (!txHash.trim()) {
+      toast({
+        title: '트랜잭션 해시를 입력하세요',
+        description: '조회할 트랜잭션 해시를 입력해 주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
-      const response = await fetch(
-        `/v1/admin/blockchain/transactions/${txHash}`,
+      const response = await apiFetch(
+        `/v1/blockchain/transactions/${txHash.trim()}`,
       );
+      if (!response.ok) {
+        toast({
+          title: '조회 실패',
+          description: `트랜잭션을 불러오지 못했습니다. (status: ${response.status})`,
+          variant: 'destructive',
+        });
+        return;
+      }
       const data = await response.json();
-      setTxInfo(data);
+      const normalized: Transaction = {
+        hash: data.hash ?? '',
+        status: data.status ?? '',
+        block_number: data.blockNumber ?? data.block_number ?? null,
+        from: data.from ?? '',
+        to: data.to ?? '',
+        timestamp: data.timestamp ?? data.createdAt ?? '',
+        gas_used: data.gasUsed ?? data.gas_used ?? '',
+      };
+      setTxInfo(normalized);
     } catch (error) {
-      alert('트랜잭션 조회에 실패했습니다.');
+      toast({
+        title: '조회 실패',
+        description: '트랜잭션 조회 중 문제가 발생했습니다.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -356,244 +604,378 @@ export default function BlockchainPage() {
         onValueChange={setActiveTab}
         className="space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto">
+        <TabsList className="flex w-full flex-wrap gap-2">
           <TabsTrigger value="overview">개요</TabsTrigger>
-          <TabsTrigger value="create">토큰 생성</TabsTrigger>
-          <TabsTrigger value="krwt">KRWT 관리</TabsTrigger>
-          <TabsTrigger value="transfer">토큰 전송</TabsTrigger>
-          <TabsTrigger value="whitelist">화이트리스트</TabsTrigger>
           <TabsTrigger value="transaction">트랜잭션</TabsTrigger>
+          <TabsTrigger value="krwt">KRWT 관리</TabsTrigger>
+          {/* <TabsTrigger value="whitelist">화이트리스트</TabsTrigger> */}
         </TabsList>
 
         {/* 개요 탭 */}
         <TabsContent value="overview" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                토큰 정보 조회
-              </CardTitle>
-              <CardDescription>
-                토큰 컨트랙트 주소로 상세 정보를 조회합니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="0x625b13759b6c4d081f24be302bdc8bf7169006ba"
-                  value={tokenAddress}
-                  onChange={(e) => setTokenAddress(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleFetchTokenInfo}>
-                  <Search className="h-4 w-4 mr-2" />
-                  조회
-                </Button>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>스마트 컨트랙트 현황</CardTitle>
+                <CardDescription>
+                  배포된 스마트 컨트랙트 목록입니다.
+                </CardDescription>
               </div>
-
-              {tokenInfo && (
-                <div className="border rounded-lg p-6 space-y-4 bg-muted/50">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        토큰 이름
-                      </Label>
-                      <p className="font-semibold mt-1">{tokenInfo.name}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        토큰 심볼
-                      </Label>
-                      <p className="font-semibold mt-1">{tokenInfo.symbol}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        총 발행량
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {tokenInfo.total_supply.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        보유자 수
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {tokenInfo.holders_count}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        컨트랙트 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {tokenInfo.contract_address}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        배당 컨트랙트 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {tokenInfo.dividend_contract}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        총 전송량
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {tokenInfo.total_transferred.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        배포 시각
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {new Date(tokenInfo.deployed_at).toLocaleString(
-                          'ko-KR',
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>스마트 컨트랙트 현황</CardTitle>
-              <CardDescription>
-                배포된 스마트 컨트랙트 목록입니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                      <Coins className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">
-                        {contracts?.krwt?.name ?? 'KRWT (Korean Won Token)'}
-                      </p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        {contracts?.krwt?.address ?? '주소 불러오는 중'}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        총발행: {contracts?.krwt?.totalSupply ?? '-'} / 소유자:{' '}
-                        {contracts?.krwt?.owner ?? '-'}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                      <Factory className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Token Factory</p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        {contracts?.tokenFactory?.address ?? '주소 불러오는 중'}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        생성 토큰: {contracts?.tokenFactory?.tokensCreated ?? 0} / 소유자:{' '}
-                        {contracts?.tokenFactory?.owner ?? '-'}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
-                </div>
-
-                {contracts?.tokens?.map((token) => (
-                  <div
-                    key={token.projectId}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="space-y-1">
-                      <p className="font-semibold">프로젝트 토큰</p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        프로젝트 ID: {token.projectId}
-                      </p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        토큰: {token.address}
-                      </p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        배당 컨트랙트: {token.dividendAddress}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">배포됨</Badge>
-                  </div>
-                ))}
-
-                {!contractsLoading && !contracts?.tokens?.length && (
-                  <p className="text-sm text-muted-foreground">등록된 토큰이 없습니다.</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowContracts((prev) => !prev)}
+                aria-label={showContracts ? '접기' : '펼치기'}
+              >
+                {showContracts ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4" />
                 )}
+              </Button>
+            </CardHeader>
+            {showContracts && (
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <Coins className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">
+                          {contracts?.krwt?.name ?? 'KRWT (Korean Won Token)'}
+                        </p>
+                        <p className="text-sm text-muted-foreground font-mono">
+                          {contracts?.krwt?.address ?? '주소 불러오는 중'}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          총발행: {contracts?.krwt?.totalSupply ?? '-'} /
+                          소유자: {contracts?.krwt?.owner ?? '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                        <Factory className="h-5 w-5 text-purple-500" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Token Factory</p>
+                        <p className="text-sm text-muted-foreground font-mono">
+                          {contracts?.tokenFactory?.address ??
+                            '주소 불러오는 중'}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          생성 토큰:{' '}
+                          {contracts?.tokenFactory?.tokensCreated ?? 0} /
+                          소유자: {contracts?.tokenFactory?.owner ?? '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge>{contractsLoading ? '로드 중' : '운영 중'}</Badge>
+                  </div>
+
+                  {contracts?.tokens?.map((token) => (
+                    <div
+                      key={token.projectId}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                          <Coins className="h-5 w-5 text-slate-500" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-semibold">프로젝트 토큰</p>
+                          <p className="text-sm text-muted-foreground font-mono">
+                            프로젝트 ID: {token.projectId}
+                          </p>
+                          <p className="text-sm text-muted-foreground font-mono">
+                            토큰: {token.address}
+                          </p>
+                          <p className="text-sm text-muted-foreground font-mono">
+                            배당 컨트랙트: {token.dividendAddress}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">배포됨</Badge>
+                    </div>
+                  ))}
+
+                  {!contractsLoading && !contracts?.tokens?.length && (
+                    <p className="text-sm text-muted-foreground">
+                      등록된 토큰이 없습니다.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          <div className="grid gap-4">
+            <Card className="h-full">
+              <CardHeader className="flex flex-row items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Coins className="h-5 w-5 text-blue-600" />
+                    블록체인 토큰 목록
+                  </CardTitle>
+                  <CardDescription>
+                    최신 생성된 토큰을 확인하고 스크롤로 더 불러옵니다.
+                  </CardDescription>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div
+                ref={tokenListContainerRef}
+                className="grid grid-cols-1 gap-3 max-h-[700px] overflow-y-auto pr-2 md:grid-cols-2"
+              >
+                  {tokenList.map((token, index) => {
+                    const address =
+                      (token as any)?.conAddress ??
+                      token.contractAddress ??
+                      (token as any)?.address ??
+                      '-';
+                    const keyValue = `${address}-${token.transactionHash ?? 'tx'}-${index}`;
+                    return (
+                    <div
+                      key={keyValue}
+                      className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-4 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-semibold text-gray-900">
+                              {token.name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            생성일 {new Date(token.createdAt).toLocaleString('ko-KR')}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold ${getStatusStyle(
+                            token.status,
+                          )}`}
+                        >
+                          {token.status}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg bg-white/80 px-3 py-2 border border-white">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">총 발행량</p>
+                            <p className="font-semibold">{token.totalSupply.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-white/80 px-3 py-2 border border-white">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">1토큰 가격</p>
+                            <p className="font-semibold">{token.faceValue.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <p className="text-xs text-muted-foreground">Contract Address</p>
+                          <div className="flex items-center gap-2">
+                            <p className="flex-1 font-mono text-xs break-all text-slate-700">
+                              {address}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-full bg-slate-100 hover:bg-slate-200"
+                              onClick={() => handleCopy(address)}
+                              title="주소 복사"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <p className="text-xs text-muted-foreground">Transaction Hash</p>
+                          <p className="font-mono text-xs break-all text-slate-700">
+                            {token.transactionHash}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {tokenLoading && (
+                  <p className="text-sm text-muted-foreground text-center">불러오는 중...</p>
+                )}
+                {!tokenLoading && !tokenList.length && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    표시할 토큰이 없습니다.
+                  </p>
+                )}
+                <div ref={loadMoreRef} />
               </div>
             </CardContent>
           </Card>
+        </div>
         </TabsContent>
 
-        {/* 토큰 생성 탭 */}
-        <TabsContent value="create" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                프로젝트 토큰 생성
-              </CardTitle>
-              <CardDescription>
-                새로운 프로젝트 토큰을 블록체인에 배포합니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="token-name">토큰 이름 *</Label>
-                <Input
-                  id="token-name"
-                  placeholder="NewProjectToken"
-                  value={createTokenData.name}
-                  onChange={(e) =>
-                    setCreateTokenData({
-                      ...createTokenData,
-                      name: e.target.value,
-                    })
-                  }
-                  maxLength={100}
-                />
-                <p className="text-xs text-muted-foreground">최대 100자</p>
-              </div>
+        {/* 트랜잭션 조회 탭 */}
+        <TabsContent value="transaction" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  트랜잭션 목록
+                </CardTitle>
+                <CardDescription>
+                  최근 트랜잭션을 간단하게 확인합니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="max-h-[640px] overflow-y-auto space-y-3 pr-1">
+                  {txList.map((item) => (
+                    <div
+                      key={item.tx_id}
+                      className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1">
+                          <p className="text-base font-semibold leading-none">
+                            트랜잭션 ID: {item.tx_id}
+                          </p>
+                          <span className="text-[10px] font-semibold text-blue-700 px-2 py-0.5 rounded-full">
+                            {item.tx_type}
+                          </span>
+                        </div>
+                        <TxStatusIcon status={item.status} />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-sm text-gray-600">
+                          금액:{' '}
+                          <span className="font-semibold text-gray-600">
+                            {item.amount.toLocaleString()}원
+                          </span>
+                        </p>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="text-xs text-gray-600">
+                          트랜잭션 해시:
+                        </span>
+                        <p className="flex-1 font-mono text-[12px] break-all text-slate-700">
+                          {item.tx_hash}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-full bg-slate-100 hover:bg-slate-200"
+                          onClick={() => copyHash(item.tx_hash)}
+                          title="해시 복사"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {txListLoading && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      불러오는 중...
+                    </p>
+                  )}
+                  {!txListLoading && !txList.length && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      표시할 트랜잭션이 없습니다.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="total-supply">총 발행량 *</Label>
-                <Input
-                  id="total-supply"
-                  type="number"
-                  placeholder="100000"
-                  value={createTokenData.total_supply}
-                  onChange={(e) =>
-                    setCreateTokenData({
-                      ...createTokenData,
-                      total_supply: e.target.value,
-                    })
-                  }
-                  min={1}
-                />
-                <p className="text-xs text-muted-foreground">최소 1 이상</p>
-              </div>
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="h-5 w-5" />
+                  트랜잭션 조회
+                </CardTitle>
+                <CardDescription>
+                  트랜잭션 해시로 상세 정보를 조회합니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="0x3be1a6df59be6937c2e4aca0d040ff2dcf897e81..."
+                    value={txHash}
+                    onChange={(e) => setTxHash(e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                  />
+                  <Button onClick={handleFetchTransaction}>
+                    <Search className="h-4 w-4 mr-2" />
+                    조회
+                  </Button>
+                </div>
 
-              <Button onClick={handleCreateToken} className="w-full" size="lg">
-                <Plus className="h-4 w-4 mr-2" />
-                토큰 생성
-              </Button>
-            </CardContent>
-          </Card>
+                {txInfo && (
+                  <div className="border rounded-lg p-6 space-y-4 bg-muted/50">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-lg">트랜잭션 상세</h3>
+                      <TxStatusIcon status={txInfo.status} />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          트랜잭션 해시
+                        </Label>
+                        <p className="font-mono text-sm mt-1 break-all">
+                          {txInfo.hash}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          블록 번호
+                        </Label>
+                        <p className="font-semibold mt-1">
+                          {txInfo.block_number}
+                        </p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs text-muted-foreground">
+                          보낸 주소
+                        </Label>
+                        <p className="font-mono text-sm mt-1 break-all">
+                          {txInfo.from}
+                        </p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs text-muted-foreground">
+                          받은 주소
+                        </Label>
+                        <p className="font-mono text-sm mt-1 break-all">
+                          {txInfo.to}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          가스 사용량
+                        </Label>
+                        <p className="font-semibold mt-1">{txInfo.gas_used}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          타임스탬프
+                        </Label>
+                        <p className="font-semibold mt-1">
+                          {new Date(txInfo.timestamp).toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* KRWT 관리 탭 */}
@@ -602,8 +984,8 @@ export default function BlockchainPage() {
             {/* KRWT 발행 */}
             <Card className="border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-background">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700">
-                  <ArrowUpCircle className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 text-indigo-600">
+                  <Banknote className="h-5 w-5" />
                   KRWT 발행 (입금)
                 </CardTitle>
                 <CardDescription>
@@ -615,25 +997,10 @@ export default function BlockchainPage() {
                   <Label htmlFor="mint-user-id">사용자 ID *</Label>
                   <Input
                     id="mint-user-id"
-                    placeholder="u1b2c3d4-5e6f-47a8-9b01-223344556677"
+                    placeholder=""
                     value={mintData.user_id}
                     onChange={(e) =>
                       setMintData({ ...mintData, user_id: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="mint-wallet">지갑 주소 *</Label>
-                  <Input
-                    id="mint-wallet"
-                    placeholder="0x661636826fc779294f3d0d9ea2d12b8e8c3e30ec"
-                    value={mintData.wallet_address}
-                    onChange={(e) =>
-                      setMintData({
-                        ...mintData,
-                        wallet_address: e.target.value,
-                      })
                     }
                   />
                 </div>
@@ -643,27 +1010,12 @@ export default function BlockchainPage() {
                   <Input
                     id="mint-amount"
                     type="number"
-                    placeholder="500000"
+                    placeholder=""
                     value={mintData.amount}
                     onChange={(e) =>
                       setMintData({ ...mintData, amount: e.target.value })
                     }
                     min={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bank-tx-id">은행 거래 ID *</Label>
-                  <Input
-                    id="bank-tx-id"
-                    placeholder="123456789"
-                    value={mintData.bank_transaction_id}
-                    onChange={(e) =>
-                      setMintData({
-                        ...mintData,
-                        bank_transaction_id: e.target.value,
-                      })
-                    }
                   />
                 </div>
 
@@ -680,11 +1032,8 @@ export default function BlockchainPage() {
                   />
                 </div>
 
-                <Button
-                  onClick={handleMintKRWT}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                <Button onClick={handleMintKRWT} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  <Banknote className="h-4 w-4 mr-2" />
                   KRWT 발행
                 </Button>
               </CardContent>
@@ -694,7 +1043,7 @@ export default function BlockchainPage() {
             <Card className="border-slate-200/50 bg-gradient-to-br from-slate-50/50 to-background">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-slate-700">
-                  <ArrowDownCircle className="h-5 w-5" />
+                  <Flame className="h-5 w-5" />
                   KRWT 소각 (출금)
                 </CardTitle>
                 <CardDescription>
@@ -706,25 +1055,10 @@ export default function BlockchainPage() {
                   <Label htmlFor="burn-user-id">사용자 ID *</Label>
                   <Input
                     id="burn-user-id"
-                    placeholder="u1b2c3d4-5e6f-47a8-9b01-223344556677"
+                    placeholder=""
                     value={burnData.user_id}
                     onChange={(e) =>
                       setBurnData({ ...burnData, user_id: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="burn-wallet">지갑 주소 *</Label>
-                  <Input
-                    id="burn-wallet"
-                    placeholder="0x661636826fc779294f3d0d9ea2d12b8e8c3e30ec"
-                    value={burnData.wallet_address}
-                    onChange={(e) =>
-                      setBurnData({
-                        ...burnData,
-                        wallet_address: e.target.value,
-                      })
                     }
                   />
                 </div>
@@ -734,27 +1068,12 @@ export default function BlockchainPage() {
                   <Input
                     id="burn-amount"
                     type="number"
-                    placeholder="300000"
+                    placeholder=""
                     value={burnData.amount}
                     onChange={(e) =>
                       setBurnData({ ...burnData, amount: e.target.value })
                     }
                     min={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="withdrawal-id">출금 요청 ID *</Label>
-                  <Input
-                    id="withdrawal-id"
-                    placeholder="w1b2c3d4-5e6f-47a8-9b01-223344556677"
-                    value={burnData.withdrawal_request_id}
-                    onChange={(e) =>
-                      setBurnData({
-                        ...burnData,
-                        withdrawal_request_id: e.target.value,
-                      })
-                    }
                   />
                 </div>
 
@@ -775,7 +1094,7 @@ export default function BlockchainPage() {
                   onClick={handleBurnKRWT}
                   className="w-full bg-slate-700 hover:bg-slate-800"
                 >
-                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  <Flame className="h-4 w-4 mr-2" />
                   KRWT 소각
                 </Button>
               </CardContent>
@@ -934,98 +1253,33 @@ export default function BlockchainPage() {
           </Card>
         </TabsContent>
 
-        {/* 트랜잭션 조회 탭 */}
-        <TabsContent value="transaction" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                트랜잭션 조회
-              </CardTitle>
-              <CardDescription>
-                트랜잭션 해시로 상세 정보를 조회합니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="0x3be1a6df59be6937c2e4aca0d040ff2dcf897e81..."
-                  value={txHash}
-                  onChange={(e) => setTxHash(e.target.value)}
-                  className="flex-1 font-mono text-sm"
-                />
-                <Button onClick={handleFetchTransaction}>
-                  <Search className="h-4 w-4 mr-2" />
-                  조회
-                </Button>
+        <Dialog
+          open={resultModal.open}
+          onOpenChange={(open) => setResultModal((prev) => ({ ...prev, open }))}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                {resultModal.isError ? (
+                  <X className="h-5 w-5 text-red-600" />
+                ) : resultModal.action === 'burn' ? (
+                  <Flame className="h-5 w-5 text-orange-600 drop-shadow" />
+                ) : (
+                  <Banknote className="h-5 w-5 text-indigo-700 drop-shadow" />
+                )}
+                <DialogTitle className={resultModal.isError ? 'text-red-600' : undefined}>
+                  {resultModal.isError ? '처리 실패' : '처리 완료'}
+                </DialogTitle>
               </div>
-
-              {txInfo && (
-                <div className="border rounded-lg p-6 space-y-4 bg-muted/50">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">트랜잭션 상세</h3>
-                    <Badge
-                      variant={
-                        txInfo.status === 'success' ? 'default' : 'destructive'
-                      }
-                    >
-                      {txInfo.status === 'success' ? '성공' : '실패'}
-                    </Badge>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        트랜잭션 해시
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {txInfo.hash}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        블록 번호
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {txInfo.block_number}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        보낸 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {txInfo.from}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">
-                        받은 주소
-                      </Label>
-                      <p className="font-mono text-sm mt-1 break-all">
-                        {txInfo.to}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        가스 사용량
-                      </Label>
-                      <p className="font-semibold mt-1">{txInfo.gas_used}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        타임스탬프
-                      </Label>
-                      <p className="font-semibold mt-1">
-                        {new Date(txInfo.timestamp).toLocaleString('ko-KR')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <DialogDescription>{resultModal.message}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={() => setResultModal({ open: false, message: '', action: undefined })}>
+                확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </Tabs>
     </div>
   );

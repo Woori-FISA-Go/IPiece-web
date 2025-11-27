@@ -3,7 +3,7 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Upload } from 'lucide-react'
+import { ChevronLeft, Plus, Upload } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +25,7 @@ type FormState = {
   owner: string
   tokenName: string
   tokenSymbol: string
+  tokenContractAddress: string
   tokenQuantity: string
   issuePrice: string
   issueDate: string
@@ -49,6 +50,7 @@ export default function NewContestPage() {
     owner: '',
     tokenName: '',
     tokenSymbol: '',
+    tokenContractAddress: '',
     tokenQuantity: '',
     issuePrice: '',
     issueDate: '',
@@ -63,6 +65,19 @@ export default function NewContestPage() {
   })
   const [status, setStatus] = useState<'offering' | 'ended' | 'market'>('offering')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [createTokenData, setCreateTokenData] = useState({
+    name: '',
+    symbol: '',
+    total_supply: '',
+    face_value: '',
+  })
+  const [isTokenCreated, setIsTokenCreated] = useState(false)
+  const [isCreatingToken, setIsCreatingToken] = useState(false)
+
+  const formatDateTimeLocal = (date: Date) => {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    return local.toISOString().slice(0, 16)
+  }
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { id, value } = event.target
@@ -107,6 +122,13 @@ export default function NewContestPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isTokenCreated) {
+      toast({
+        title: '토큰을 먼저 생성해 주세요',
+        description: '프로젝트 토큰 생성 완료 후 공모 상품을 등록할 수 있습니다.',
+      })
+      return
+    }
     if (isOfferingQuantityMismatch) {
       toast({
         title: '모집 수량을 확인해 주세요',
@@ -147,6 +169,7 @@ export default function NewContestPage() {
         token_quantity: Number(formState.tokenQuantity),
         token_name: formState.tokenName,
         token_symbol: formState.tokenSymbol,
+        token_contract_address: formState.tokenContractAddress || null,
         dividend_ratio: Number(formState.dividendRatio) / 100,
         offering: {
           offering_amount: Number(formState.offeringAmount),
@@ -194,6 +217,87 @@ export default function NewContestPage() {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleCreateToken = async () => {
+    const totalSupplyNum = Number(createTokenData.total_supply)
+    const faceValueNum = Number(createTokenData.face_value)
+    const payload = {
+      name: createTokenData.name.trim(),
+      symbol: createTokenData.symbol.toUpperCase().trim(),
+      totalSupply: Number.isFinite(totalSupplyNum) ? totalSupplyNum : 0,
+      faceValue: Number.isFinite(faceValueNum) ? faceValueNum : 0,
+    }
+
+    if (!payload.name || !payload.symbol || !payload.totalSupply || !payload.faceValue) {
+      toast({
+        title: '필수 값을 입력해 주세요',
+        description: '이름, 심볼, 총 발행량, 1토큰 가격을 모두 입력해주세요.',
+      })
+      return
+    }
+
+    setIsCreatingToken(true)
+    try {
+      const response = await apiFetch('/v1/blockchain/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const name = data.name ?? payload.name
+        const symbol = data.symbol ?? payload.symbol
+        const supply = data.totalSupply ?? payload.totalSupply
+        const face = data.faceValue ?? payload.faceValue
+        const supplyStr =
+          typeof supply === 'number' && Number.isFinite(supply)
+            ? String(supply)
+            : payload.totalSupply
+              ? String(payload.totalSupply)
+              : formState.tokenQuantity
+        const faceStr =
+          typeof face === 'number' && Number.isFinite(face)
+            ? String(face)
+            : payload.faceValue
+              ? String(payload.faceValue)
+              : formState.issuePrice
+        const contract = data.contractAddress ?? data.token_address ?? '-'
+        setFormState((prev) => ({
+          ...prev,
+          tokenName: name,
+          tokenSymbol: symbol,
+          tokenQuantity: supplyStr,
+          issuePrice: faceStr,
+          issueDate: formatDateTimeLocal(new Date()),
+          offeringPrice: faceStr,
+          offeringAmount: supplyStr,
+          tokenContractAddress: contract,
+        }))
+        setIsTokenCreated(true)
+        return
+      }
+
+      let message = '토큰 생성에 실패했습니다.'
+      try {
+        const err = await response.json()
+        message = err?.detail ?? err?.message ?? message
+      } catch {
+        // ignore
+      }
+      toast({
+        title: '토큰 생성 실패',
+        description: `${message} (status: ${response.status})`,
+      })
+    } catch (error) {
+      toast({
+        title: '토큰 생성 실패',
+        description: '토큰 생성 중 문제가 발생했습니다.',
+      })
+    } finally {
+      setIsCreatingToken(false)
     }
   }
 
@@ -263,6 +367,103 @@ export default function NewContestPage() {
 
           <Card>
             <CardContent className="space-y-6 p-6">
+              <div className="flex items-center gap-3">
+                <Plus className="h-5 w-5 text-[#1A4DE5]" />
+                <div>
+                  <h3 className="text-lg font-semibold">프로젝트 토큰 생성</h3>
+                  <p className="text-sm text-gray-500">
+                    프로젝트 토큰 생성 API로 블록체인에 바로 배포합니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="token-name">토큰 이름 *</Label>
+                  <Input
+                    id="token-name"
+                    placeholder="NewProjectToken"
+                    value={createTokenData.name}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        name: e.target.value,
+                      })
+                    }
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-gray-500">최대 100자</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="token-symbol">토큰 심볼 *</Label>
+                  <Input
+                    id="token-symbol"
+                    placeholder="TKN"
+                    value={createTokenData.symbol}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        symbol: e.target.value.toUpperCase(),
+                      })
+                    }
+                    maxLength={10}
+                  />
+                  <p className="text-xs text-gray-500">영문 대문자 권장</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="total-supply">총 발행량 *</Label>
+                  <Input
+                    id="total-supply"
+                    type="number"
+                    placeholder="100000"
+                    value={createTokenData.total_supply}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        total_supply: e.target.value,
+                      })
+                    }
+                    min={1}
+                  />
+                  <p className="text-xs text-gray-500">최소 1 이상</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="face-value">1토큰 당 가격 (faceValue) *</Label>
+                  <Input
+                    id="face-value"
+                    type="number"
+                    placeholder="예: 1000"
+                    value={createTokenData.face_value}
+                    onChange={(e) =>
+                      setCreateTokenData({
+                        ...createTokenData,
+                        face_value: e.target.value,
+                      })
+                    }
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleCreateToken}
+                  className="bg-[#1A4DE5] hover:bg-[#153eb5]"
+                  size="sm"
+                  type="button"
+                  disabled={isCreatingToken}
+                >
+                  {isCreatingToken ? '생성 중...' : '프로젝트 토큰 생성'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-6 p-6">
               <h3 className="text-lg font-semibold">토큰 정보</h3>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
@@ -286,6 +487,18 @@ export default function NewContestPage() {
                     placeholder="예: MGU (3자리)"
                     maxLength={3}
                     value={formState.tokenSymbol}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="tokenContractAddress">
+                    토큰 컨트랙트 주소 <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="tokenContractAddress"
+                    placeholder="0x..."
+                    value={formState.tokenContractAddress}
                     onChange={handleInputChange}
                     required
                   />
@@ -507,13 +720,16 @@ export default function NewContestPage() {
             <Button
               className="bg-[#1A4DE5] hover:bg-[#153eb5]"
               type="submit"
-              disabled={isSubmitting || isOfferingQuantityMismatch || isOfferingPriceMismatch}
+              disabled={
+                isSubmitting || isOfferingQuantityMismatch || isOfferingPriceMismatch || !isTokenCreated
+              }
             >
               {isSubmitting ? '등록 중...' : '등록 완료'}
             </Button>
           </div>
         </div>
       </form>
+
     </div>
   )
 }
