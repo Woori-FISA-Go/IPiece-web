@@ -15,6 +15,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Coins,
   Factory,
   Send,
@@ -31,6 +39,8 @@ import {
   Copy,
   Check,
   X,
+  Banknote,
+  Flame,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
@@ -142,6 +152,17 @@ export default function BlockchainPage() {
   const TOKEN_PAGE_SIZE = 2;
   const [txList, setTxList] = useState<TransactionListItem[]>([]);
   const [txListLoading, setTxListLoading] = useState(false);
+  const [resultModal, setResultModal] = useState<{
+    open: boolean
+    message: string
+    isError?: boolean
+    action?: 'mint' | 'burn'
+  }>({
+    open: false,
+    message: '',
+    isError: false,
+    action: undefined,
+  });
 
   // KRWT 소각
   const [burnData, setBurnData] = useState({
@@ -305,46 +326,108 @@ export default function BlockchainPage() {
   };
 
   const handleBurnKRWT = async () => {
-    try {
-      const response = await fetch('/v1/admin/blockchain/krwt/burn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(burnData),
+    const userIdNum = Number(burnData.user_id);
+    const amountNum = Number(burnData.amount);
+    if (!userIdNum || !amountNum) {
+      setResultModal({
+        open: true,
+        isError: true,
+        message: '유저 ID와 금액을 모두 입력해 주세요.',
       });
-      const data = await response.json();
-      alert(
-        `KRWT가 소각되었습니다!\nTx: ${data.transaction_hash}\n이전 잔고: ${data.previous_balance}\n새 잔고: ${data.new_balance}`,
-      );
+      return;
+    }
+    try {
+      const payload = {
+        userId: userIdNum,
+        amount: amountNum,
+        memo: burnData.memo,
+      };
+      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/burn', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.message || `status ${response.status}`);
+      }
+      setResultModal({
+        open: true,
+        isError: false,
+        action: 'burn',
+        message: `유저 ${payload.userId}번의 ${payload.amount}원이 소각 되었습니다.`,
+      });
       setBurnData({
         user_id: '',
-        wallet_address: '',
         amount: '',
-        withdrawal_request_id: '',
         memo: '',
       });
     } catch (error) {
-      alert('KRWT 소각에 실패했습니다.');
+      setResultModal({
+        open: true,
+        isError: true,
+        message:
+          error instanceof Error
+            ? `소각 실패: ${error.message}`
+            : 'KRWT 소각 중 오류가 발생했습니다.',
+      });
     }
   };
 
   const handleMintKRWT = async () => {
-    try {
-      const response = await fetch('/v1/admin/blockchain/krwt/mint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mintData),
+    const userIdNum = Number(mintData.user_id);
+    const amountNum = Number(mintData.amount);
+    if (!userIdNum || !amountNum) {
+      setResultModal({
+        open: true,
+        isError: true,
+        message: '유저 ID와 금액을 모두 입력해 주세요.',
       });
-      const data = await response.json();
-      alert(`KRWT가 발행되었습니다!\nTx: ${data.transaction_hash}`);
+      return;
+    }
+    try {
+      const payload = {
+        userId: userIdNum,
+        amount: amountNum,
+        memo: mintData.memo,
+      };
+      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/mint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.message || `status ${response.status}`);
+      }
+      setResultModal({
+        open: true,
+        isError: false,
+        action: 'mint',
+        message: `유저 ${payload.userId}번에게 ${payload.amount}원이 입금 되었습니다.`,
+      });
       setMintData({
         user_id: '',
-        wallet_address: '',
         amount: '',
-        bank_transaction_id: '',
         memo: '',
       });
     } catch (error) {
-      alert('KRWT 발행에 실패했습니다.');
+      setResultModal({
+        open: true,
+        isError: true,
+        message:
+          error instanceof Error
+            ? `발행 실패: ${error.message}`
+            : 'KRWT 발행 중 오류가 발생했습니다.',
+      });
     }
   };
 
@@ -525,7 +608,7 @@ export default function BlockchainPage() {
           <TabsTrigger value="overview">개요</TabsTrigger>
           <TabsTrigger value="transaction">트랜잭션</TabsTrigger>
           <TabsTrigger value="krwt">KRWT 관리</TabsTrigger>
-          <TabsTrigger value="whitelist">화이트리스트</TabsTrigger>
+          {/* <TabsTrigger value="whitelist">화이트리스트</TabsTrigger> */}
         </TabsList>
 
         {/* 개요 탭 */}
@@ -901,8 +984,8 @@ export default function BlockchainPage() {
             {/* KRWT 발행 */}
             <Card className="border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-background">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700">
-                  <ArrowUpCircle className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 text-indigo-600">
+                  <Banknote className="h-5 w-5" />
                   KRWT 발행 (입금)
                 </CardTitle>
                 <CardDescription>
@@ -914,25 +997,10 @@ export default function BlockchainPage() {
                   <Label htmlFor="mint-user-id">사용자 ID *</Label>
                   <Input
                     id="mint-user-id"
-                    placeholder="u1b2c3d4-5e6f-47a8-9b01-223344556677"
+                    placeholder=""
                     value={mintData.user_id}
                     onChange={(e) =>
                       setMintData({ ...mintData, user_id: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="mint-wallet">지갑 주소 *</Label>
-                  <Input
-                    id="mint-wallet"
-                    placeholder="0x661636826fc779294f3d0d9ea2d12b8e8c3e30ec"
-                    value={mintData.wallet_address}
-                    onChange={(e) =>
-                      setMintData({
-                        ...mintData,
-                        wallet_address: e.target.value,
-                      })
                     }
                   />
                 </div>
@@ -942,27 +1010,12 @@ export default function BlockchainPage() {
                   <Input
                     id="mint-amount"
                     type="number"
-                    placeholder="500000"
+                    placeholder=""
                     value={mintData.amount}
                     onChange={(e) =>
                       setMintData({ ...mintData, amount: e.target.value })
                     }
                     min={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bank-tx-id">은행 거래 ID *</Label>
-                  <Input
-                    id="bank-tx-id"
-                    placeholder="123456789"
-                    value={mintData.bank_transaction_id}
-                    onChange={(e) =>
-                      setMintData({
-                        ...mintData,
-                        bank_transaction_id: e.target.value,
-                      })
-                    }
                   />
                 </div>
 
@@ -979,11 +1032,8 @@ export default function BlockchainPage() {
                   />
                 </div>
 
-                <Button
-                  onClick={handleMintKRWT}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                <Button onClick={handleMintKRWT} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  <Banknote className="h-4 w-4 mr-2" />
                   KRWT 발행
                 </Button>
               </CardContent>
@@ -993,7 +1043,7 @@ export default function BlockchainPage() {
             <Card className="border-slate-200/50 bg-gradient-to-br from-slate-50/50 to-background">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-slate-700">
-                  <ArrowDownCircle className="h-5 w-5" />
+                  <Flame className="h-5 w-5" />
                   KRWT 소각 (출금)
                 </CardTitle>
                 <CardDescription>
@@ -1005,25 +1055,10 @@ export default function BlockchainPage() {
                   <Label htmlFor="burn-user-id">사용자 ID *</Label>
                   <Input
                     id="burn-user-id"
-                    placeholder="u1b2c3d4-5e6f-47a8-9b01-223344556677"
+                    placeholder=""
                     value={burnData.user_id}
                     onChange={(e) =>
                       setBurnData({ ...burnData, user_id: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="burn-wallet">지갑 주소 *</Label>
-                  <Input
-                    id="burn-wallet"
-                    placeholder="0x661636826fc779294f3d0d9ea2d12b8e8c3e30ec"
-                    value={burnData.wallet_address}
-                    onChange={(e) =>
-                      setBurnData({
-                        ...burnData,
-                        wallet_address: e.target.value,
-                      })
                     }
                   />
                 </div>
@@ -1033,27 +1068,12 @@ export default function BlockchainPage() {
                   <Input
                     id="burn-amount"
                     type="number"
-                    placeholder="300000"
+                    placeholder=""
                     value={burnData.amount}
                     onChange={(e) =>
                       setBurnData({ ...burnData, amount: e.target.value })
                     }
                     min={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="withdrawal-id">출금 요청 ID *</Label>
-                  <Input
-                    id="withdrawal-id"
-                    placeholder="w1b2c3d4-5e6f-47a8-9b01-223344556677"
-                    value={burnData.withdrawal_request_id}
-                    onChange={(e) =>
-                      setBurnData({
-                        ...burnData,
-                        withdrawal_request_id: e.target.value,
-                      })
-                    }
                   />
                 </div>
 
@@ -1074,7 +1094,7 @@ export default function BlockchainPage() {
                   onClick={handleBurnKRWT}
                   className="w-full bg-slate-700 hover:bg-slate-800"
                 >
-                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  <Flame className="h-4 w-4 mr-2" />
                   KRWT 소각
                 </Button>
               </CardContent>
@@ -1232,6 +1252,34 @@ export default function BlockchainPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <Dialog
+          open={resultModal.open}
+          onOpenChange={(open) => setResultModal((prev) => ({ ...prev, open }))}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                {resultModal.isError ? (
+                  <X className="h-5 w-5 text-red-600" />
+                ) : resultModal.action === 'burn' ? (
+                  <Flame className="h-5 w-5 text-orange-600 drop-shadow" />
+                ) : (
+                  <Banknote className="h-5 w-5 text-indigo-700 drop-shadow" />
+                )}
+                <DialogTitle className={resultModal.isError ? 'text-red-600' : undefined}>
+                  {resultModal.isError ? '처리 실패' : '처리 완료'}
+                </DialogTitle>
+              </div>
+              <DialogDescription>{resultModal.message}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={() => setResultModal({ open: false, message: '', action: undefined })}>
+                확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </Tabs>
     </div>
   );
