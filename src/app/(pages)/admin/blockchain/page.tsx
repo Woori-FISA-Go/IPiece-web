@@ -363,7 +363,9 @@ export default function BlockchainPage() {
       });
       setBurnData({
         user_id: '',
+        wallet_address: '',
         amount: '',
+        withdrawal_request_id: '',
         memo: '',
       });
     } catch (error) {
@@ -416,7 +418,9 @@ export default function BlockchainPage() {
       });
       setMintData({
         user_id: '',
+        wallet_address: '',
         amount: '',
+        bank_transaction_id: '',
         memo: '',
       });
     } catch (error) {
