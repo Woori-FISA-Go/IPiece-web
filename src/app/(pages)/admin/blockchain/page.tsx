@@ -619,7 +619,7 @@ export default function BlockchainPage() {
         <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
+              <div className="space-y-2">
                 <CardTitle>스마트 컨트랙트 현황</CardTitle>
                 <CardDescription>
                   배포된 스마트 컨트랙트 목록입니다.
@@ -722,7 +722,7 @@ export default function BlockchainPage() {
           <div className="grid gap-4">
             <Card className="h-full">
               <CardHeader className="flex flex-row items-start justify-between gap-3">
-                <div>
+                <div className="space-y-2">
                   <CardTitle className="flex items-center gap-2">
                     <Coins className="h-5 w-5 text-blue-600" />
                     블록체인 토큰 목록
