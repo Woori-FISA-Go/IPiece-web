@@ -8,8 +8,8 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: ipiece-frontend
-  # 👇 실행마다 유니크한 태그 (커밋 SHA + run_number)
-  IMAGE_TAG: ${{ github.sha }}-${{ github.run_number }}
+  # 👇 실행마다 유니크한 태그 (커밋 SHA + run_id + run_attempt)
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   build-and-push:
@@ -117,7 +117,6 @@ jobs:
           cd ../../../..
 
           # 🔥 핵심: 매 실행마다 항상 달라지는 트리거 파일 생성
-          #   → kustomize가 실제 변경을 못 하더라도, 이 파일 때문에 git diff는 무조건 생김
           echo "trigger: $(date -u +%Y-%m-%dT%H:%M:%SZ), image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" > .deploy-trigger
 
           echo "Git status / diff 확인:"
