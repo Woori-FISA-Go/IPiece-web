@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -8,22 +8,29 @@ import {
   Boxes,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard,
+  Cloud,
   LogOut,
   Megaphone,
   PieChart,
-  Wrench,
+  Server,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navigation = [
-  { name: '대시보드', href: '/admin', icon: LayoutDashboard },
+type NavigationItem = {
+  name: string;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  nested?: boolean;
+};
+
+const navigation: NavigationItem[] = [
+  { name: '시스템 모니터링', href: '/admin/monitoring?tab=system', icon: Activity },
+  { name: '클라우드', href: '/admin/monitoring?tab=system&infra=cloud', icon: Cloud, nested: true },
+  { name: '온프레미스', href: '/admin/monitoring?tab=system&infra=onprem', icon: Server, nested: true },
+  { name: '블록체인 모니터링', href: '/admin/monitoring?tab=blockchain', icon: Boxes },
   { name: '공모 관리', href: '/admin/offering', icon: Megaphone },
   { name: '배당 관리', href: '/admin/dividend', icon: PieChart },
   { name: '블록체인', href: '/admin/blockchain', icon: Boxes },
-  { name: '시스템 모니터링', href: '/admin/monitoring?tab=system', icon: Activity },
-  { name: '블록체인 모니터링', href: '/admin/monitoring?tab=blockchain', icon: Boxes },
-  { name: '운영 모니터링', href: '/admin/monitoring?tab=operations', icon: Wrench },
 ];
 
 export function AdminSidebar() {
@@ -31,16 +38,26 @@ export function AdminSidebar() {
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
   const currentTab = searchParams?.get('tab') || 'system';
+  const infraParam = searchParams?.get('infra');
+  const currentInfra = infraParam === 'onprem' || infraParam === 'cloud' ? infraParam : null;
 
-  const isMonitoringLinkActive = (href: string) => {
+  const isMonitoringLinkActive = (item: NavigationItem) => {
     if (!pathname.startsWith('/admin/monitoring')) return false;
-    const tab = href.split('tab=')[1] || 'system';
-    return currentTab === tab;
+    try {
+      const url = new URL(item.href, 'http://localhost');
+      const tab = url.searchParams.get('tab') || 'system';
+      if (tab !== currentTab) return false;
+      const infra = url.searchParams.get('infra');
+      if (infra) return infra === currentInfra;
+      return currentInfra === null;
+    } catch {
+      return false;
+    }
   };
 
-  const isLinkActive = (href: string) => {
-    if (href.startsWith('/admin/monitoring')) return isMonitoringLinkActive(href);
-    return (pathname.startsWith(href) && href !== '/admin') || pathname === href;
+  const isLinkActive = (item: NavigationItem) => {
+    if (item.href.startsWith('/admin/monitoring')) return isMonitoringLinkActive(item);
+    return (pathname.startsWith(item.href) && item.href !== '/admin') || pathname === item.href;
   };
 
   return (
@@ -66,7 +83,7 @@ export function AdminSidebar() {
       </div>
       <div className="flex-1 py-6 flex flex-col gap-1 px-2">
         {navigation.map((item) => {
-          const active = isLinkActive(item.href);
+          const active = isLinkActive(item);
           return (
             <Link
               key={item.name}
@@ -74,6 +91,7 @@ export function AdminSidebar() {
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 collapsed && 'justify-center px-2',
+                item.nested && !collapsed && 'pl-6 text-xs',
                 active
                   ? 'bg-[#3869FA] text-white shadow-md'
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white',

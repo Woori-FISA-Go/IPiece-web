@@ -80,23 +80,9 @@ export default function PortfolioPieChart({
                     strokeWidth={1.5}
                   >
                     {chartData.map((entry, index) => (
-                      <Cell
-                        key={entry.name}
-                        fill={entry.color}
-                      />
+                      <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: '1px solid #e5e7eb',
-                      fontSize: 12,
-                    }}
-                    formatter={(value: number, _name, props) => [
-                      `${value.toFixed(1)}%`,
-                      props?.payload?.name ?? '',
-                    ]}
-                  />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-20 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-inner">
