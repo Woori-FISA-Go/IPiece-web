@@ -48,21 +48,39 @@ jobs:
       - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # ✅ Repo Secret 에서 API URL 가져오기
-          API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_GRAFANA_EKS_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_EKS_URL }}
+          NEXT_PUBLIC_GRAFANA_ALB_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_ALB_URL }}
+          NEXT_PUBLIC_GRAFANA_RDS_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_RDS_URL }}
+          NEXT_PUBLIC_GRAFANA_VPN_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_VPN_URL }}
+          NEXT_PUBLIC_GRAFANA_NAT_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_NAT_URL }}
+          NEXT_PUBLIC_GRAFANA_S3_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_S3_URL }}
+          NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL }}
+          NEXT_PUBLIC_GRAFANA_RPC_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_RPC_URL }}
+          NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL: ${{ secrets.NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL }}
+
         run: |
           echo "Using IMAGE_TAG = $IMAGE_TAG"
-          echo "Using NEXT_PUBLIC_API_URL = $API_URL"
+          echo "Using NEXT_PUBLIC_API_URL = $NEXT_PUBLIC_API_URL"
 
-          # --build-arg 옵션으로 도커 빌드 시점에 URL 주입
           docker build \
-            --build-arg NEXT_PUBLIC_API_URL=$API_URL \
+            --build-arg NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_EKS_URL=$NEXT_PUBLIC_GRAFANA_EKS_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_ALB_URL=$NEXT_PUBLIC_GRAFANA_ALB_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_RDS_URL=$NEXT_PUBLIC_GRAFANA_RDS_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_VPN_URL=$NEXT_PUBLIC_GRAFANA_VPN_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_NAT_URL=$NEXT_PUBLIC_GRAFANA_NAT_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_S3_URL=$NEXT_PUBLIC_GRAFANA_S3_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL=$NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_RPC_URL=$NEXT_PUBLIC_GRAFANA_RPC_URL \
+            --build-arg NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL=$NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
-          # Prod는 'latest' 태그도 같이 관리
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
 
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
