@@ -172,7 +172,7 @@ IPiece-web/
 │   ├── types/                 # TypeScript 타입 정의 (global.d.ts)
 │   └── constants/             # 공통 상수
 ├── public/                    # 정적 파일 (이미지, 폰트)
-├── .env.local.example         # 환경 변수 예시
+├── .env.local.example         # 환경 변수 예시 
 ├── package.json
 └── pnpm-lock.yaml
 ```
