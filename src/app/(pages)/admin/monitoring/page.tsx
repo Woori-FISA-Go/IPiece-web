@@ -109,7 +109,9 @@ type TransactionsResponse = {
 };
 
 type GrafanaPanelKey =
+  | 'ec2'
   | 'eks'
+  | 'eks-pod'
   | 'alb'
   | 'rds'
   | 'vpn'
@@ -141,11 +143,25 @@ const withLightTheme = (url?: string) => {
 
 const grafanaPanels: GrafanaPanel[] = [
   {
+    key: 'ec2',
+    label: 'EC2',
+    description: 'EC2 인스턴스 상태, CPU/메모리/네트워크 지표를 확인합니다.',
+    envKey: 'NEXT_PUBLIC_GRAFANA_EC2_URL',
+    url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EC2_URL),
+  },
+  {
     key: 'eks',
     label: 'EKS',
     description: 'EKS 클러스터/노드/파드 자원 사용량과 상태를 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_EKS_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EKS_URL),
+  },
+  {
+    key: 'eks-pod',
+    label: 'EKS Pod',
+    description: 'EKS 파드별 리소스 사용률과 이벤트를 모니터링합니다.',
+    envKey: 'NEXT_PUBLIC_GRAFANA_EKS_POD_URL',
+    url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EKS_POD_URL),
   },
   {
     key: 'alb',
