@@ -342,15 +342,13 @@ export default function BlockchainPage() {
         amount: amountNum,
         memo: burnData.memo,
       };
-      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/burn', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization:
-            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
-        },
-        body: JSON.stringify(payload),
-      });
+    const response = await apiFetch("/v1/blockchain/wallet/krwt/burn", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.detail || data?.message || `status ${response.status}`);
@@ -397,15 +395,13 @@ export default function BlockchainPage() {
         amount: amountNum,
         memo: mintData.memo,
       };
-      const response = await fetch('http://localhost:8080/v1/blockchain/wallet/krwt/mint', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization:
-            'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzY0MTQ0MDk3LCJleHAiOjE3NjQzODYwMTd9.KZbP4A6Yf8agTjWV8sA2ev8yk3U37ufdrwGppPhVOvw',
-        },
-        body: JSON.stringify(payload),
-      });
+    const response = await apiFetch("/v1/blockchain/wallet/krwt/mint", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", // 이것만 명시
+      },
+      body: JSON.stringify(payload),
+    });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.detail || data?.message || `status ${response.status}`);
