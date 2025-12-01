@@ -1,9 +1,18 @@
 ﻿"use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
-import { Search, Plus, MoreHorizontal, ArrowRightLeft } from "lucide-react"
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  ArrowRightLeft,
+  LayoutGrid,
+  Clock3,
+  PlayCircle,
+  CheckCircle2,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -77,8 +86,8 @@ type MarketProductsResponse = {
 }
 
 const statusClassNames = {
-  running: "bg-blue-100 text-blue-700 hover:bg-blue-100",
-  pending: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+  running: "bg-[#fef3c7] text-[#d97706] hover:bg-[#fef3c7]",
+  pending: "bg-emerald-50 text-emerald-700 hover:bg-emerald-50",
   closed: "bg-gray-200 text-gray-600 hover:bg-gray-200",
 } as const
 
@@ -130,8 +139,8 @@ export default function ProductManagementPage() {
     if (status === "OFFERING") {
       return {
         label: "공모",
-        textClassName: "text-[#E54848]",
-        dotClassName: "bg-[#E54848]",
+        textClassName: "text-[#1A4DE5]",
+        dotClassName: "bg-[#1A4DE5]",
       }
     }
     if (status === "TRADE") {
@@ -299,6 +308,32 @@ export default function ProductManagementPage() {
     }
   }, [activeTab, marketLoaded, fetchMarketProducts])
 
+  const sortedFilteredOfferings = useMemo(() => {
+    return [...filteredOfferings].sort((a, b) => {
+      const statusOrder = (item: OfferingItem) => {
+        const st = getOfferingStatus(item).label
+        if (st === "시작 전") return 0
+        if (st === "진행중") return 1
+        return 2 // 종료
+      }
+      const aStatus = statusOrder(a)
+      const bStatus = statusOrder(b)
+      if (aStatus !== bStatus) return aStatus - bStatus
+
+      if (aStatus === 2 && bStatus === 2) {
+        const closedPriority = (item: OfferingItem) =>
+          getSimpleStatusInfo(item.status).label === "공모" ? -1 : 0
+        const aClosed = closedPriority(a)
+        const bClosed = closedPriority(b)
+        if (aClosed !== bClosed) return aClosed - bClosed
+      }
+
+      const aStart = a.offeringStartDate ? new Date(a.offeringStartDate).getTime() : 0
+      const bStart = b.offeringStartDate ? new Date(b.offeringStartDate).getTime() : 0
+      return bStart - aStart
+    })
+  }, [filteredOfferings])
+
   const handleTransferToMarket = async (productId: number) => {
     const target = offerings.find((item) => item.productId === productId)
     if (!target) return
@@ -392,30 +427,46 @@ export default function ProductManagementPage() {
         <div className="p-6 space-y-6">
           {activeTab === "contest" && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { key: "all", label: "전체", value: totals.total },
-                  { key: "pending", label: "시작 전", value: totals.pending },
-                  { key: "running", label: "진행 중", value: totals.running },
-                  { key: "closed", label: "종료", value: totals.closed },
-                ].map((item) => {
-                  const isActive = statusFilter === item.key
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setStatusFilter(item.key as typeof statusFilter)}
-                      className={`rounded-lg border bg-gray-50 p-4 text-left transition ${
-                        isActive ? "border-[#1A4DE5] shadow-sm" : "border-gray-200"
-                      }`}
-                    >
-                      <div className="text-xs text-gray-500">{item.label}</div>
-                      <div className="text-xl font-bold text-gray-900">
-                        {item.value.toLocaleString()} 건
-                      </div>
-                    </button>
-                  )
-                })}
+              <div className="bg-white rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.08)] p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { key: "all", label: "전체", value: totals.total, icon: LayoutGrid, activeBg: "bg-[#e8f1ff]", activeText: "text-[#0d6efd]", iconColor: "text-[#0d6efd]", bg: "bg-[#e8f1ff]", hoverColor: "#0d6efd" },
+                    { key: "pending", label: "시작 전", value: totals.pending, icon: Clock3, activeBg: "bg-emerald-50", activeText: "text-emerald-700", iconColor: "text-emerald-600", bg: "bg-emerald-50", hoverColor: "#059669" },
+                    { key: "running", label: "진행 중", value: totals.running, icon: PlayCircle, activeBg: "bg-[#fef3c7]", activeText: "text-[#d97706]", iconColor: "text-[#d97706]", bg: "bg-[#fef3c7]", hoverColor: "#d97706" },
+                    { key: "closed", label: "종료", value: totals.closed, icon: CheckCircle2, activeBg: "bg-gray-100", activeText: "text-gray-600", iconColor: "text-gray-500", bg: "bg-gray-100", hoverColor: "#6b7280" },
+                  ].map((item) => {
+                    const isActive = statusFilter === item.key
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setStatusFilter(item.key as typeof statusFilter)}
+                        style={{ "--btn-color": item.hoverColor } as CSSProperties}
+                        className={`flex items-center gap-3 rounded-full border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0d6efd] ${
+                          isActive
+                            ? `border-transparent ${item.activeBg} ${item.activeText}`
+                            : "border-slate-200 bg-white text-slate-800 hover:border-[var(--btn-color)] hover:text-[var(--btn-color)]"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                            isActive ? "bg-white/60 text-current border border-white/60" : `${item.bg} ${item.iconColor}`
+                          }`}
+                        >
+                          <item.icon className="w-5 h-5" />
+                        </span>
+                        <div className="flex flex-col leading-tight">
+                          <span className={`text-sm font-semibold ${isActive ? "text-current" : "text-slate-900"}`}>
+                            {item.label}
+                          </span>
+                          <span className={`text-base font-bold ${isActive ? "text-current" : "text-slate-700"}`}>
+                            {item.value.toLocaleString()} 건
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
@@ -445,7 +496,7 @@ export default function ProductManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredOfferings.map((offering) => {
+                    {sortedFilteredOfferings.map((offering) => {
                       const status = getOfferingStatus(offering)
                       const simpleStatus = getSimpleStatusInfo(offering.status)
                       const totalAmount = offering.offeringPrice * offering.offeringAmount
@@ -475,10 +526,13 @@ export default function ProductManagementPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className={`w-24 h-2 rounded-full overflow-hidden ${status.variant === "closed" ? "bg-gray-300" : "bg-gray-200"}`}>
                                 <div
-                                  className="h-full bg-[#1A4DE5] rounded-full transition-all"
-                                  style={{ width: `${progress}%` }}
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${progress}%`,
+                                    backgroundColor: status.variant === "closed" && progress >= 100 ? "#9ca3af" : "#1A4DE5",
+                                  }}
                                 />
                               </div>
                               <span className="text-sm font-medium text-gray-700">{progress}%</span>
