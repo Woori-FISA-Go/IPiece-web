@@ -121,6 +121,8 @@ type GrafanaPanelKey =
   | 'rpc'
   | 'blockchain-validate';
 
+type InfraCategory = 'cloud' | 'onprem';
+
 type GrafanaPanel = {
   key: GrafanaPanelKey;
   label: string;
@@ -221,8 +223,14 @@ const grafanaPanels: GrafanaPanel[] = [
   },
 ];
 
+const infraGroups: Record<InfraCategory, GrafanaPanelKey[]> = {
+  cloud: ['eks', 'alb', 'rds', 'vpn', 'nat', 's3'],
+  onprem: ['sensitive-db', 'rpc', 'blockchain-validate'],
+};
+
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState<'system' | 'blockchain' | 'operations'>('system');
+  const [infraCategory, setInfraCategory] = useState<InfraCategory>('cloud');
   const [infraTab, setInfraTab] = useState<GrafanaPanelKey>('eks');
   const [blockchainStatus, setBlockchainStatus] = useState<BlockchainStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -249,6 +257,10 @@ export default function MonitoringPage() {
     if (tab === 'system' || tab === 'blockchain' || tab === 'operations') {
       setActiveTab(tab as typeof activeTab);
     }
+    const infra = searchParams.get('infra');
+    if (infra === 'cloud' || infra === 'onprem') {
+      setInfraCategory(infra);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -257,6 +269,13 @@ export default function MonitoringPage() {
       fetchTransactions();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    const available = infraGroups[infraCategory];
+    if (!available.includes(infraTab)) {
+      setInfraTab(available[0]);
+    }
+  }, [infraCategory, infraTab]);
 
   const fetchBlockchainStatus = async () => {
     try {
@@ -297,26 +316,46 @@ export default function MonitoringPage() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
-          setActiveTab(value as typeof activeTab);
-          router.replace(`?tab=${value}`);
+          const nextTab = value as typeof activeTab;
+          setActiveTab(nextTab);
+          const params = new URLSearchParams(searchParams?.toString() ?? '');
+          params.set('tab', nextTab);
+          if (nextTab === 'system') {
+            params.set('infra', infraCategory);
+          } else {
+            params.delete('infra');
+          }
+          router.replace(`?${params.toString()}`);
         }}
         className="space-y-6"
       >
         <TabsList className="bg-white border hidden">
-          <TabsTrigger value="system">시스템 모니터링</TabsTrigger>
           <TabsTrigger value="blockchain">블록체인 모니터링</TabsTrigger>
-          <TabsTrigger value="operations">운영 모니터링</TabsTrigger>
         </TabsList>
         <TabsContent value="system" className="space-y-6">
           <Card className="shadow-sm border bg-white">
-            <CardContent className="space-y-4 pt-4">
+            <CardContent className="space-y-6 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">모니터링 영역</p>
+                  <p className="text-sm text-muted-foreground">
+                    {infraCategory === 'cloud' ? '클라우드' : '온프레미스'} 인프라 상태를 보고 있어요. 변경은 좌측 사이드바에서 선택하세요.
+                  </p>
+                </div>
+                <Badge variant="secondary" className="bg-slate-100 text-slate-700 border">
+                  {infraCategory === 'cloud' ? 'Cloud' : 'On-Prem'}
+                </Badge>
+              </div>
+
               <Tabs
                 value={infraTab}
                 onValueChange={(value) => setInfraTab(value as GrafanaPanelKey)}
                 className="space-y-4"
               >
                 <TabsList className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-lg shadow-inner w-full overflow-hidden">
-                  {grafanaPanels.map((panel) => (
+                  {grafanaPanels
+                    .filter((panel) => infraGroups[infraCategory].includes(panel.key))
+                    .map((panel) => (
                     <TabsTrigger
                       key={panel.key}
                       value={panel.key}
@@ -327,49 +366,51 @@ export default function MonitoringPage() {
                   ))}
                 </TabsList>
 
-                {grafanaPanels.map((panel) => (
-                  <TabsContent
-                    key={panel.key}
-                    value={panel.key}
-                    className="space-y-4"
-                  >
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{panel.label} Dashboard</p>
-                        <p className="text-sm text-muted-foreground">{panel.description}</p>
-                      </div>
-                      {panel.url ? (
-                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100">Grafana 연결</Badge>
-                      ) : (
-                        <Badge className="bg-amber-50 text-amber-700 border border-amber-200">URL 미설정</Badge>
-                      )}
-                    </div>
-                    <div className="rounded-lg border bg-slate-50 overflow-hidden">
-                      {panel.url ? (
-                        <iframe
-                          key={panel.key}
-                          src={panel.url}
-                          title={`${panel.label} Grafana Dashboard`}
-                          className="w-full h-[1100px] min-h-[800px] bg-white"
-                          frameBorder="0"
-                          scrolling="no"
-                          loading="lazy"
-                          allowFullScreen
-                        />
-                      ) : (
-                        <div className="px-6 py-10 flex items-start justify-between gap-4 flex-wrap">
-                          <div className="space-y-2">
-                            <p className="font-medium text-slate-900">{panel.label} Dashboard URL이 아직 없어요.</p>
-                            <p className="text-sm text-muted-foreground">`.env.local`에 {panel.envKey} 값을 채운 뒤 새로고침하면 반영돼요.</p>
-                          </div>
-                          <Badge variant="secondary" className="font-mono text-xs bg-white text-slate-700 border">
-                            {panel.envKey}
-                          </Badge>
+                {grafanaPanels
+                  .filter((panel) => infraGroups[infraCategory].includes(panel.key))
+                  .map((panel) => (
+                    <TabsContent
+                      key={panel.key}
+                      value={panel.key}
+                      className="space-y-4"
+                    >
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-slate-900">{panel.label} Dashboard</p>
+                          <p className="text-sm text-muted-foreground">{panel.description}</p>
                         </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                ))}
+                        {panel.url ? (
+                          <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100">Grafana 연결</Badge>
+                        ) : (
+                          <Badge className="bg-amber-50 text-amber-700 border border-amber-200">URL 미설정</Badge>
+                        )}
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 overflow-hidden">
+                        {panel.url ? (
+                          <iframe
+                            key={panel.key}
+                            src={panel.url}
+                            title={`${panel.label} Grafana Dashboard`}
+                            className="w-full h-[1100px] min-h-[800px] bg-white"
+                            frameBorder="0"
+                            scrolling="no"
+                            loading="lazy"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <div className="px-6 py-10 flex items-start justify-between gap-4 flex-wrap">
+                            <div className="space-y-2">
+                              <p className="font-medium text-slate-900">{panel.label} Dashboard URL이 아직 없어요.</p>
+                              <p className="text-sm text-muted-foreground">`.env.local`에 {panel.envKey} 값을 채운 뒤 새로고침하면 반영돼요.</p>
+                            </div>
+                            <Badge variant="secondary" className="font-mono text-xs bg-white text-slate-700 border">
+                              {panel.envKey}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  ))}
               </Tabs>
             </CardContent>
           </Card>
@@ -771,4 +812,3 @@ export default function MonitoringPage() {
     </div>
   );
 }
-
