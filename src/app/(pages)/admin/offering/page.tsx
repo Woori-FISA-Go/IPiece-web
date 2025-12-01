@@ -1,5 +1,6 @@
 ﻿"use client"
 
+import Image from "next/image"
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -66,6 +67,7 @@ type MarketItem = {
   current_price: number
   change_rate: number
   listed_date: string
+  thumbnailImg?: string | null
 }
 
 type MarketProduct = {
@@ -250,6 +252,7 @@ export default function ProductManagementPage() {
       current_price: item.currentPrice ?? 0,
       change_rate: item.changeRate ?? 0,
       listed_date: listedDate,
+      thumbnailImg: item.thumbnailImg ?? null,
     }
   }, [])
 
@@ -618,9 +621,26 @@ export default function ProductManagementPage() {
                       {marketItems.map((item, index) => (
                         <TableRow key={`${item.id}-${index}`} className="align-middle">
                           <TableCell className="px-4 py-3">
-                            <div>
-                              <div className="font-medium text-gray-900">{item.product_name}</div>
-                              <div className="text-sm text-gray-500">{item.owner}</div>
+                            <div className="flex items-center gap-3">
+                              <div className="relative h-12 w-12 rounded-lg bg-slate-100 border overflow-hidden flex-shrink-0">
+                                {item.thumbnailImg ? (
+                                  <Image
+                                    src={item.thumbnailImg}
+                                    alt={`${item.product_name} 썸네일`}
+                                    fill
+                                    className="object-cover"
+                                    sizes="48px"
+                                  />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center text-sm font-semibold text-slate-500">
+                                    {item.product_name?.slice(0, 1) ?? "?"}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">{item.product_name}</div>
+                                <div className="text-sm text-gray-500">{item.owner}</div>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="px-4 py-3 text-center pl-6">
