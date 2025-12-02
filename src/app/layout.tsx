@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'IPiece: 캐릭터 IP STO 플랫폼',
-  description: 'IPiece 디지털 증권 거래 플랫폼',
+  description: 'IPiece 디지털 2차거래 플랫폼',
   icons: {
     icon: '/app_icon.svg',
     shortcut: '/app_icon.svg',

@@ -170,7 +170,6 @@ export default function NewContestPage() {
         token_name: formState.tokenName,
         token_symbol: formState.tokenSymbol,
         token_contract_address: formState.tokenContractAddress || null,
-        dividend_ratio: Number(formState.dividendRatio) / 100,
         offering: {
           offering_amount: Number(formState.offeringAmount),
           offering_price: Number(formState.offeringPrice),
@@ -537,20 +536,6 @@ export default function NewContestPage() {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dividendRatio">
-                    수익 배분 비율 (%) <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="dividendRatio"
-                    type="number"
-                    placeholder="30.0"
-                    step="0.1"
-                    value={formState.dividendRatio}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="issueDate">
                     발행일 <span className="text-red-500">*</span>
                   </Label>
@@ -718,7 +703,7 @@ export default function NewContestPage() {
               취소
             </Button>
             <Button
-              className="bg-[#1A4DE5] hover:bg-[#153eb5]"
+              className="bg-[#1d4ed8] hover:bg-[#153ba8]"
               type="submit"
               disabled={
                 isSubmitting || isOfferingQuantityMismatch || isOfferingPriceMismatch || !isTokenCreated

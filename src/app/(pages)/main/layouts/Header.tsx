@@ -80,7 +80,7 @@ export function Header({ containerClassName }: HeaderProps) {
               href="/trading"
               className={`${navBase} ${isTradingActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}`}
             >
-              {'\uC99D\uAD8C \uAC70\uB798'}
+              {'2차거래'}
             </Link>
           </nav>
         </div>
