@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import type { SecurityInfo } from '@/lib/mock-info';
@@ -26,13 +27,15 @@ export function ImageInfoPanel({ info }: ImageInfoPanelProps) {
           </Link>
         </div>
         <div className="relative flex flex-1 w-full items-center justify-center rounded-xl bg-gray-200 text-sm text-gray-400 overflow-hidden">
-          <div className="relative w-full aspect-[16/9] overflow-hidden rounded-lg">
+          <div className="relative w-full h-full min-h-[220px] overflow-hidden rounded-lg">
             {info.heroImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={info.heroImage}
                 alt={`${info.name} 대표작품`}
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(min-width: 1024px) 480px, 100vw"
+                priority
               />
             ) : (
               <span className="flex h-full w-full items-center justify-center">image</span>

@@ -66,7 +66,7 @@ export function AdminSidebar() {
   };
 
   return (
-    <div className="hidden md:flex shrink-0 flex-col w-64 bg-[#0f172a] border-r border-slate-800 text-slate-50 shadow-lg shadow-slate-900/40 rounded-tr-3xl rounded-br-3xl overflow-hidden">
+    <div className="hidden md:flex shrink-0 flex-col w-64 bg-[#0f172a] border-r border-slate-800 text-slate-50 shadow-inner shadow-slate-900/40 rounded-tr-3xl rounded-br-3xl overflow-hidden">
       <div className="flex h-20 items-center gap-3 px-5 border-b border-slate-800/80">
         <div className="relative h-10 w-10 overflow-hidden rounded-full bg-slate-800 border border-slate-700">
           <Image src={appIcon} alt="관리자 프로필" fill sizes="40px" className="object-contain p-1.5" />
@@ -87,11 +87,11 @@ export function AdminSidebar() {
                 'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
                 item.nested && 'pl-10 text-xs font-medium',
                 active
-                  ? 'bg-[#24355c] text-white border border-[#4f7dfa]/60'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800',
+                  ? 'bg-[#24355c] text-white ring-1 ring-[#4f7dfa]/60 ring-inset'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
               )}
             >
-              {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-2 rounded-r-full bg-[#7ea4ff]" />}
+              {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-2 rounded-r-full bg-[#7ea4ff]" aria-hidden="true" />}
               <item.icon
                 className={cn(
                   'h-5 w-5 shrink-0',
@@ -104,7 +104,7 @@ export function AdminSidebar() {
         })}
       </div>
       <div className="p-4 border-t border-slate-800/80">
-        <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" type="button">
+        <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0" type="button">
           <LogOut className="h-4 w-4" />
           <span>로그아웃</span>
         </button>

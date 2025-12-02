@@ -137,6 +137,33 @@ export default function ProductManagementPage() {
     return { label: "진행중", variant: "running" as const }
   }
 
+  const rankStatus = (item: OfferingItem) => {
+    const st = getOfferingStatus(item).label
+    if (st === "시작 전") return 0
+    if (st === "진행중") return 1
+    return 2
+  }
+
+  const sortOfferings = (items: OfferingItem[]) => {
+    return [...items].sort((a, b) => {
+      const aStatus = rankStatus(a)
+      const bStatus = rankStatus(b)
+      if (aStatus !== bStatus) return aStatus - bStatus
+
+      if (aStatus === 2 && bStatus === 2) {
+        const closedPriority = (item: OfferingItem) =>
+          getSimpleStatusInfo(item.status).label === "공모" ? -1 : 0
+        const aClosed = closedPriority(a)
+        const bClosed = closedPriority(b)
+        if (aClosed !== bClosed) return aClosed - bClosed
+      }
+
+      const aStart = a.offeringStartDate ? new Date(a.offeringStartDate).getTime() : 0
+      const bStart = b.offeringStartDate ? new Date(b.offeringStartDate).getTime() : 0
+      return bStart - aStart
+    })
+  }
+
   function getSimpleStatusInfo(status?: OfferingItem["status"]) {
     if (status === "OFFERING") {
       return {
@@ -187,7 +214,10 @@ export default function ProductManagementPage() {
           running: data.ingCount ?? 0,
           closed: data.afterCount ?? 0,
         })
-        setOfferings((prev) => (options?.reset ? data.items : [...prev, ...data.items]))
+        setOfferings((prev) => {
+          const next = options?.reset ? data.items : [...prev, ...data.items]
+          return sortOfferings(next)
+        })
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load offerings.")
       } finally {
@@ -311,31 +341,10 @@ export default function ProductManagementPage() {
     }
   }, [activeTab, marketLoaded, fetchMarketProducts])
 
-  const sortedFilteredOfferings = useMemo(() => {
-    return [...filteredOfferings].sort((a, b) => {
-      const statusOrder = (item: OfferingItem) => {
-        const st = getOfferingStatus(item).label
-        if (st === "시작 전") return 0
-        if (st === "진행중") return 1
-        return 2 // 종료
-      }
-      const aStatus = statusOrder(a)
-      const bStatus = statusOrder(b)
-      if (aStatus !== bStatus) return aStatus - bStatus
-
-      if (aStatus === 2 && bStatus === 2) {
-        const closedPriority = (item: OfferingItem) =>
-          getSimpleStatusInfo(item.status).label === "공모" ? -1 : 0
-        const aClosed = closedPriority(a)
-        const bClosed = closedPriority(b)
-        if (aClosed !== bClosed) return aClosed - bClosed
-      }
-
-      const aStart = a.offeringStartDate ? new Date(a.offeringStartDate).getTime() : 0
-      const bStart = b.offeringStartDate ? new Date(b.offeringStartDate).getTime() : 0
-      return bStart - aStart
-    })
-  }, [filteredOfferings])
+  const sortedFilteredOfferings = useMemo(
+    () => sortOfferings(filteredOfferings),
+    [filteredOfferings],
+  )
 
   const handleTransferToMarket = async (productId: number) => {
     const target = offerings.find((item) => item.productId === productId)
@@ -394,7 +403,7 @@ export default function ProductManagementPage() {
           <p className="text-sm text-gray-500 mt-1">공모 및 2차 거래 상품을 관리합니다.</p>
         </div>
         <Link href="/admin/offering/new">
-          <Button className="bg-[#1A4DE5] hover:bg-[#153eb5]">
+          <Button className="bg-[#1d4ed8] hover:bg-[#153ba8]">
             <Plus className="w-4 h-4 mr-2" />
             상품 생성
           </Button>
