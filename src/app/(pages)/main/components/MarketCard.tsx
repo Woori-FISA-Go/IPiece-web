@@ -15,30 +15,6 @@ interface MarketCardProps {
   item: Item
 }
 
-const allowedRemoteHosts = new Set([
-  "hebbkx1anhila5yf.public.blob.vercel-storage.com",
-  "i.namu.wiki",
-  "img.danawa.com",
-  "cdn.huffingtonpost.kr",
-  "i.pinimg.com",
-  "github.com",
-  "ipiece-image.s3.ap-northeast-2.amazonaws.com",
-])
-
-const apiHost = (() => {
-  const base = process.env.NEXT_PUBLIC_API_URL
-  if (!base) return null
-  try {
-    return new URL(base).hostname
-  } catch {
-    return null
-  }
-})()
-
-if (apiHost) {
-  allowedRemoteHosts.add(apiHost)
-}
-
 function normalizeImageUrl(url?: string) {
   if (!url) return undefined
   if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -47,28 +23,20 @@ function normalizeImageUrl(url?: string) {
       if (parsed.hostname === "www.google.com" && parsed.pathname === "/url") {
         return undefined
       }
-      if (!allowedRemoteHosts.has(parsed.hostname)) {
-        return undefined
-      }
       return url
     } catch {
       return undefined
     }
   }
   const base = process.env.NEXT_PUBLIC_API_URL
-  if (!base) {
-    return url.startsWith("/") ? url : `/${url}`
-  }
   const normalizedPath = url.startsWith("/") ? url : `/${url}`
+  if (!base) {
+    return normalizedPath
+  }
   try {
-    const absolute = new URL(normalizedPath, base).toString()
-    const host = new URL(absolute).hostname
-    if (!allowedRemoteHosts.has(host)) {
-      return undefined
-    }
-    return absolute
+    return new URL(normalizedPath, base).toString()
   } catch {
-    return undefined
+    return normalizedPath
   }
 }
 

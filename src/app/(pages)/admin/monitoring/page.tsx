@@ -40,7 +40,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-// Mock data
+
 const cpuData = Array.from({ length: 24 }, (_, i) => ({
   time: `${i}:00`,
   usage: Math.floor(Math.random() * 40) + 30,
@@ -67,7 +67,7 @@ const trafficData = Array.from({ length: 24 }, (_, i) => ({
 const tabMeta: Record<'system' | 'blockchain' | 'operations', { title: string; description: string }> = {
   system: {
     title: '시스템 모니터링',
-    description: '실시간 시스템 상태 및 블록체인 네트워크를 모니터링합니다.',
+    description: '실시간 시스템 상태와 블록체인 네트워크를 모니터링합니다.',
   },
   blockchain: {
     title: '블록체인 모니터링',
@@ -75,7 +75,7 @@ const tabMeta: Record<'system' | 'blockchain' | 'operations', { title: string; d
   },
   operations: {
     title: '운영 모니터링',
-    description: '운영 관점의 주요 지표를 확인합니다.',
+    description: '운영 지표와 주요 알림을 확인합니다.',
   },
 };
 
@@ -109,6 +109,7 @@ type TransactionsResponse = {
 };
 
 type GrafanaPanelKey =
+  | 'node'
   | 'ec2'
   | 'eks'
   | 'eks-pod'
@@ -121,7 +122,7 @@ type GrafanaPanelKey =
   | 'rpc'
   | 'blockchain-validate';
 
-type InfraCategory = 'cloud' | 'onprem';
+type InfraCategory = 'cloud-system' | 'cloud-service' | 'onprem';
 
 type GrafanaPanel = {
   key: GrafanaPanelKey;
@@ -145,92 +146,106 @@ const withLightTheme = (url?: string) => {
 
 const grafanaPanels: GrafanaPanel[] = [
   {
+    key: 'node',
+    label: 'Node',
+    description: 'EKS 워커 노드 자원 상태를 확인합니다.',
+    envKey: 'NEXT_PUBLIC_GRAFANA_NODE_URL',
+    url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_NODE_URL),
+  },
+  {
     key: 'ec2',
     label: 'EC2',
-    description: 'EC2 인스턴스 상태, CPU/메모리/네트워크 지표를 확인합니다.',
+    description: 'EC2 인스턴스 CPU/메모리/네트워크 지표를 봅니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_EC2_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EC2_URL),
   },
   {
     key: 'eks',
     label: 'EKS',
-    description: 'EKS 클러스터/노드/파드 자원 사용량과 상태를 확인합니다.',
+    description: 'EKS 클러스터/노드/파드 자원 사용량을 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_EKS_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EKS_URL),
   },
   {
     key: 'eks-pod',
     label: 'EKS Pod',
-    description: 'EKS 파드별 리소스 사용률과 이벤트를 모니터링합니다.',
+    description: 'EKS 파드별 리소스와 이벤트를 모니터링합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_EKS_POD_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_EKS_POD_URL),
   },
   {
     key: 'alb',
     label: 'ALB',
-    description: 'ALB 요청 추이, 지연 시간, 타겟 그룹 헬스 상태를 살펴봅니다.',
+    description: 'ALB 요청량, 지연 시간, 타깃 그룹 상태를 살펴봅니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_ALB_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_ALB_URL),
   },
   {
     key: 'rds',
     label: 'RDS',
-    description: 'RDS CPU/커넥션/지연시간과 장애 징후를 모니터링합니다.',
+    description: 'RDS CPU/커넥션/스토리지 지표를 모니터링합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_RDS_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_RDS_URL),
   },
   {
     key: 'vpn',
     label: 'VPN',
-    description: 'VPN 터널 상태와 트래픽 흐름을 확인합니다.',
+    description: 'VPN 세션 상태와 트래픽 흐름을 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_VPN_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_VPN_URL),
   },
   {
     key: 'nat',
     label: 'NAT',
-    description: 'NAT 게이트웨이 트래픽과 세션 상태를 추적합니다.',
+    description: 'NAT 게이트웨이 트래픽과 연결 상태를 모니터링합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_NAT_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_NAT_URL),
   },
   {
     key: 's3',
     label: 'S3',
-    description: 'S3 버킷 요청 및 에러, 지연시간을 확인합니다.',
+    description: 'S3 요청 수와 지연 시간, 에러율을 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_S3_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_S3_URL),
   },
   {
     key: 'sensitive-db',
     label: 'Sensitive DB',
-    description: '민감 데이터베이스 상태와 보안 이벤트를 모니터링합니다.',
+    description: '민감 데이터베이스 상태와 접근 이벤트를 모니터링합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_SENSITIVE_DB_URL),
   },
   {
     key: 'rpc',
     label: 'RPC',
-    description: 'RPC 노드의 응답 지연과 오류, 트래픽을 확인합니다.',
+    description: 'RPC 엔드포인트 응답 성능과 트래픽을 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_RPC_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_RPC_URL),
   },
   {
     key: 'blockchain-validate',
     label: 'Blockchain Validate',
-    description: '블록체인 밸리데이터, 블록 지연 등 상태를 확인합니다.',
+    description: '블록체인 밸리데이터 상태와 블록 처리 현황을 확인합니다.',
     envKey: 'NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL',
     url: withLightTheme(process.env.NEXT_PUBLIC_GRAFANA_BLOCKCHAIN_VALIDATE_URL),
   },
 ];
 
 const infraGroups: Record<InfraCategory, GrafanaPanelKey[]> = {
-  cloud: ['eks', 'alb', 'rds', 'vpn', 'nat', 's3'],
+  'cloud-system': ['eks', 'node', 'alb'],
+  'cloud-service': ['rds', 'vpn', 'nat', 's3'],
   onprem: ['sensitive-db', 'rpc', 'blockchain-validate'],
+};
+
+const infraLabels: Record<InfraCategory, string> = {
+  'cloud-system': '클라우드 시스템',
+  'cloud-service': '클라우드 서비스',
+  onprem: '온프레미스',
 };
 
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState<'system' | 'blockchain' | 'operations'>('system');
-  const [infraCategory, setInfraCategory] = useState<InfraCategory>('cloud');
+  const [infraCategory, setInfraCategory] = useState<InfraCategory>('cloud-system');
   const [infraTab, setInfraTab] = useState<GrafanaPanelKey>('eks');
   const [blockchainStatus, setBlockchainStatus] = useState<BlockchainStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -258,8 +273,14 @@ export default function MonitoringPage() {
       setActiveTab(tab as typeof activeTab);
     }
     const infra = searchParams.get('infra');
-    if (infra === 'cloud' || infra === 'onprem') {
-      setInfraCategory(infra);
+    const mapped =
+      infra === 'cloud'
+        ? 'cloud-system'
+        : infra === 'cloud-system' || infra === 'cloud-service' || infra === 'onprem'
+        ? infra
+        : null;
+    if (mapped) {
+      setInfraCategory(mapped);
     }
   }, [searchParams]);
 
@@ -332,19 +353,19 @@ export default function MonitoringPage() {
         <TabsList className="bg-white border hidden">
           <TabsTrigger value="blockchain">블록체인 모니터링</TabsTrigger>
         </TabsList>
+
         <TabsContent value="system" className="space-y-6">
           <Card className="shadow-sm border bg-white">
-            <CardContent className="space-y-6 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">모니터링 영역</p>
-                  <p className="text-sm text-muted-foreground">
-                    {infraCategory === 'cloud' ? '클라우드' : '온프레미스'} 인프라 상태를 보고 있어요. 변경은 좌측 사이드바에서 선택하세요.
-                  </p>
+            <CardContent className="space-y-6 pt-6">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-slate-900">시스템 모니터링 패널</h3>
+                <p className="text-sm text-muted-foreground">Grafana 패널과 시스템 지표를 한곳에서 확인하세요.</p>
+                <div className="flex items-center justify-between gap-3">
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-700 border">
+                    {infraLabels[infraCategory]}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">사이드바에서 카테고리를 변경할 수 있어요.</p>
                 </div>
-                <Badge variant="secondary" className="bg-slate-100 text-slate-700 border">
-                  {infraCategory === 'cloud' ? 'Cloud' : 'On-Prem'}
-                </Badge>
               </div>
 
               <Tabs
@@ -352,28 +373,26 @@ export default function MonitoringPage() {
                 onValueChange={(value) => setInfraTab(value as GrafanaPanelKey)}
                 className="space-y-4"
               >
-                <TabsList className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-lg shadow-inner w-full overflow-hidden">
-                  {grafanaPanels
-                    .filter((panel) => infraGroups[infraCategory].includes(panel.key))
-                    .map((panel) => (
-                    <TabsTrigger
-                      key={panel.key}
-                      value={panel.key}
-                      className="min-w-[120px] justify-center text-sm rounded-md px-3 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:font-semibold"
-                    >
-                      {panel.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                <div className="overflow-x-auto">
+                  <TabsList className="flex flex-nowrap gap-2 bg-slate-50 p-3 rounded-lg shadow-inner min-w-full">
+                    {grafanaPanels
+                      .filter((panel) => infraGroups[infraCategory].includes(panel.key))
+                      .map((panel) => (
+                        <TabsTrigger
+                          key={panel.key}
+                          value={panel.key}
+                          className="min-w-[120px] whitespace-nowrap justify-center text-sm rounded-md px-3 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:font-semibold"
+                        >
+                          {panel.label}
+                        </TabsTrigger>
+                      ))}
+                  </TabsList>
+                </div>
 
                 {grafanaPanels
                   .filter((panel) => infraGroups[infraCategory].includes(panel.key))
                   .map((panel) => (
-                    <TabsContent
-                      key={panel.key}
-                      value={panel.key}
-                      className="space-y-4"
-                    >
+                    <TabsContent key={panel.key} value={panel.key} className="space-y-4">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="space-y-1">
                           <p className="font-semibold text-slate-900">{panel.label} Dashboard</p>
@@ -415,6 +434,7 @@ export default function MonitoringPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="blockchain" className="space-y-6">
           <Card className="shadow-sm border bg-white">
             <CardContent className="space-y-6 pt-4">
@@ -451,7 +471,6 @@ export default function MonitoringPage() {
                         </div>
                       </CardContent>
                     </Card>
-
                     <Card className="border-l-4 border-l-blue-500">
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
@@ -471,7 +490,7 @@ export default function MonitoringPage() {
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground font-medium">연결 피어</p>
+                            <p className="text-sm text-muted-foreground font-medium">피어 수</p>
                             <p className="text-3xl font-bold">{blockchainStatus.peer_count}</p>
                             <p className="text-xs text-muted-foreground mt-2">네트워크 노드</p>
                           </div>
@@ -549,7 +568,7 @@ export default function MonitoringPage() {
                                           )
                                         }
                                       >
-                                        ▼
+                                        ≡
                                       </Button>
                                     </div>
                                   </div>
@@ -586,6 +605,7 @@ export default function MonitoringPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="operations">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-l-4 border-l-blue-500">
@@ -632,7 +652,7 @@ export default function MonitoringPage() {
                     <p className="text-3xl font-bold">{systemMetrics.successRate}%</p>
                     <div className="flex items-center gap-1 text-xs text-emerald-600">
                       <CheckCircle2 className="w-3 h-3" />
-                      <span>우수</span>
+                      <span>양호</span>
                     </div>
                   </div>
                   <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
