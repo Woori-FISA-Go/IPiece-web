@@ -450,7 +450,7 @@ export default function NewContestPage() {
               <div className="flex justify-end">
                 <Button
                   onClick={handleCreateToken}
-                  className="bg-[#1A4DE5] hover:bg-[#153eb5]"
+                  className="bg-[#1d4ed8] hover:bg-[#153ba8]"
                   size="sm"
                   type="button"
                   disabled={isCreatingToken}

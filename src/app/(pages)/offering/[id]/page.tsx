@@ -1,12 +1,17 @@
 "use client"
 
+import dynamic from "next/dynamic"
+import Link from "next/link"
 import { use, useEffect, useState } from "react"
 
+import { Dialog, DialogContent, DialogTitle } from "../components/ui/dialog"
+import { Button } from "../components/ui/button"
 import { OfferingHero } from "../components/offering-hero"
 import { OfferingDetails } from "../components/offering-details"
 import { PurchaseConfirmModal } from "../components/purchase-confirm-modal"
 import { PurchaseDetailsModal } from "../components/purchase-details-modal"
 import type { OfferingDetail } from "../types"
+import cashbackAnimation from "@/assets/lottie/Cashback.json"
 import { apiFetch } from "@/lib/api-client"
 
 type OfferingPageProps = {
@@ -15,20 +20,18 @@ type OfferingPageProps = {
   }>
 }
 
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false })
+
 export default function OfferingPage({ params }: OfferingPageProps) {
   const resolvedParams = use(params)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [detail, setDetail] = useState<OfferingDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  useEffect(() => {
-    if (!toastMessage) return
-    const timer = setTimeout(() => setToastMessage(null), 2600)
-    return () => clearTimeout(timer)
-  }, [toastMessage])
 
   useEffect(() => {
     let ignore = false
@@ -101,7 +104,8 @@ export default function OfferingPage({ params }: OfferingPageProps) {
 
   const handleFinalPurchase = () => {
     setShowConfirmModal(false)
-    setToastMessage("구매 신청이 완료되었습니다.")
+    setToastMessage(null)
+    setShowSuccessModal(true)
   }
 
   return (
@@ -129,11 +133,32 @@ export default function OfferingPage({ params }: OfferingPageProps) {
         onSuccess={handleFinalPurchase}
       />
 
-      {toastMessage ? (
-        <div className="fixed bottom-6 right-6 rounded-md bg-black/80 px-4 py-2 text-sm text-white shadow-lg">
-          {toastMessage}
-        </div>
-      ) : null}
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="w-full max-w-sm gap-0 bg-white p-0 rounded-2xl">
+          <DialogTitle className="sr-only">공모 참여 완료</DialogTitle>
+          <div className="flex flex-col items-center gap-4 px-6 py-8">
+            <div className="h-48 w-48">
+              <Lottie animationData={cashbackAnimation} loop={false} autoplay />
+            </div>
+            <div className="space-y-1 text-center">
+              <h3 className="text-lg font-semibold text-[#0f172a]">공모 참여가 완료되었습니다.</h3>
+              <p className="text-sm text-[#6b7280]">
+                참여 내역은{" "}
+                <Link href="/mypage" className="text-[#1d4ed8] font-semibold hover:underline">
+                  마이페이지
+                </Link>
+                에서 확인할 수 있습니다.
+              </p>
+            </div>
+            <Button
+              className="h-11 w-full rounded-lg bg-[#3386E5] hover:bg-[#2a75d0]"
+              onClick={() => setShowSuccessModal(false)}
+            >
+              확인
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
