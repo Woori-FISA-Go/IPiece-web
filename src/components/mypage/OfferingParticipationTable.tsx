@@ -110,7 +110,7 @@ export default function OfferingParticipationTable({
                       </TableCell>
                       <TableCell className="w-[12%] text-center">
                         <div className="font-medium text-gray-900">{item.quantity.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">TOKENS</div>
+                        <div className="text-xs text-gray-500">{item.tokenName || "토큰"}</div>
                       </TableCell>
                       <TableCell className="w-[13%] text-right">
                         <div className="font-medium text-gray-900">{formatCurrency(item.offeringPrice)}</div>

@@ -1,11 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import myHomeEmptyIcon from '@/assets/images/my_home_empty_state_icon.svg';
+import paySuccessAnimation from '@/assets/lottie/PaySuccess.json';
 import { apiFetch } from '@/lib/api-client';
 
 type OrderTab = 'buy' | 'sell' | 'pending';
@@ -74,6 +78,8 @@ type PendingOrderPayload = {
   placed_at?: string;
 };
 
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
+
 export function OrderForm({ currentPrice, assetSummary, productId, pendingRefreshToken = 0 }: OrderFormProps) {
   const [activeTab, setActiveTab] = useState<OrderTab>('buy');
   const [price, setPrice] = useState(currentPrice);
@@ -84,6 +90,8 @@ export function OrderForm({ currentPrice, assetSummary, productId, pendingRefres
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showFillModal, setShowFillModal] = useState(false);
+  const [fillInfo, setFillInfo] = useState<{ quantity: number; price: number } | null>(null);
 
   useEffect(() => {
     setHasHydrated(true);
@@ -120,7 +128,7 @@ export function OrderForm({ currentPrice, assetSummary, productId, pendingRefres
     setPriceInput(String(currentPrice ?? 0));
   }, [currentPrice]);
 
-  const fetchPendingOrders = useCallback(async () => {
+  const fetchPendingOrders = useCallback(async (): Promise<number | undefined> => {
     const numericProductId = Number(productId);
     if (!Number.isFinite(numericProductId)) return;
 
@@ -149,8 +157,10 @@ export function OrderForm({ currentPrice, assetSummary, productId, pendingRefres
         } satisfies PendingOrder;
       });
       setPendingOrders(normalized);
+      return normalized.length;
     } catch (error) {
       console.error('Failed to fetch pending orders', error);
+      return undefined;
     }
   }, [productId]);
 
@@ -213,7 +223,43 @@ export function OrderForm({ currentPrice, assetSummary, productId, pendingRefres
         return;
       }
 
-      await fetchPendingOrders();
+      let body: BuyOrderResponse | null = null;
+      try {
+        body = (await res.json()) as BuyOrderResponse;
+      } catch {
+        body = null;
+      }
+
+      const remaining = Number(
+        body?.remaining_quantity ?? (body as any)?.remainingQuantity ?? NaN,
+      );
+      const filled = Number(
+        body?.filled_quantity ?? (body as any)?.filledQuantity ?? NaN,
+      );
+      const orderQty = Number(
+        body?.order_quantity ?? (body as any)?.orderQuantity ?? payload.order_quantity,
+      );
+      const execPrice = Number(
+        body?.order_price ?? (body as any)?.orderPrice ?? payload.order_price,
+      );
+      const hasRemaining = Number.isFinite(remaining);
+      const hasFilled = Number.isFinite(filled);
+      const isFullyFilled =
+        (hasRemaining && remaining <= 0) ||
+        (hasFilled && Number.isFinite(orderQty) && filled >= orderQty) ||
+        (!hasRemaining && !hasFilled && body !== null); // assume 체결 when no pending info
+
+      const pendingCount = await fetchPendingOrders();
+
+      if (isFullyFilled || pendingCount === 0) {
+        setFillInfo({
+          quantity: Number.isFinite(orderQty) ? Number(orderQty) : normalizedQuantity,
+          price: Number.isFinite(execPrice) ? Number(execPrice) : normalizedPrice,
+        });
+        setShowFillModal(true);
+        return;
+      }
+
       setPrevTab(activeTab);
       setActiveTab('pending');
     } catch (error) {
@@ -658,8 +704,35 @@ export function OrderForm({ currentPrice, assetSummary, productId, pendingRefres
               <div className="h-3 w-24 rounded-full bg-gray-100" />
             </div>
           )}
-        </CardContent>
-      </Card>
+      </CardContent>
+    </Card>
+
+      <Dialog open={showFillModal} onOpenChange={setShowFillModal}>
+        <DialogContent className="w-full max-w-sm rounded-2xl bg-white p-0 shadow-2xl">
+          <DialogTitle className="sr-only">체결 완료</DialogTitle>
+          <div className="flex flex-col items-center gap-4 px-6 py-8">
+            <div className="h-44 w-44">
+              <Lottie animationData={paySuccessAnimation} loop={false} autoplay />
+            </div>
+            <div className="space-y-1 text-center">
+              <h3 className="text-lg font-semibold text-[#0f172a]">체결 완료</h3>
+              {fillInfo ? (
+                <p className="text-sm text-[#6b7280]">
+                  {fillInfo.quantity.toLocaleString()} 토큰이 {fillInfo.price.toLocaleString()}원에 체결되었습니다.
+                </p>
+              ) : (
+                <p className="text-sm text-[#6b7280]">주문이 체결되었습니다.</p>
+              )}
+            </div>
+            <Button
+              className="h-11 w-full rounded-lg bg-[#2563EB] hover:bg-[#1d4ed8]"
+              onClick={() => setShowFillModal(false)}
+            >
+              확인
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
