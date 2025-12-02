@@ -7,6 +7,8 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import {
   Activity,
   Boxes,
+  Cloud,
+  CloudCog,
   Cloudy,
   LogOut,
   Megaphone,
@@ -24,13 +26,14 @@ type NavigationItem = {
 };
 
 const navigation: NavigationItem[] = [
-  { name: '시스템 모니터링', href: '/admin/monitoring?tab=system', icon: Activity },
-  { name: '클라우드', href: '/admin/monitoring?tab=system&infra=cloud', icon: Cloudy, nested: true },
-  { name: '온프레미스', href: '/admin/monitoring?tab=system&infra=onprem', icon: Server, nested: true },
-  { name: '블록체인 모니터링', href: '/admin/monitoring?tab=blockchain', icon: Boxes },
-  { name: '공모 관리', href: '/admin/offering', icon: Megaphone },
-  { name: '배당 관리', href: '/admin/dividend', icon: PieChart },
-  { name: '블록체인', href: '/admin/blockchain', icon: Boxes },
+  { name: '\uC2DC\uC2A4\uD15C \uBAA8\uB2C8\uD130\uB9C1', href: '/admin/monitoring?tab=system', icon: Activity },
+  { name: '\uD074\uB77C\uC6B0\uB4DC \uC2DC\uC2A4\uD15C', href: '/admin/monitoring?tab=system&infra=cloud-system', icon: Cloudy, nested: true },
+  { name: '\uD074\uB77C\uC6B0\uB4DC \uC11C\uBE44\uC2A4', href: '/admin/monitoring?tab=system&infra=cloud-service', icon: CloudCog, nested: true },
+  { name: '\uC628\uD504\uB808\uBBF8\uC2A4', href: '/admin/monitoring?tab=system&infra=onprem', icon: Server, nested: true },
+  { name: '\uBE14\uB85D\uCCB4\uC778 \uBAA8\uB2C8\uD130\uB9C1', href: '/admin/monitoring?tab=blockchain', icon: Boxes },
+  { name: '\uACF5\uBAA8 \uAD00\uB9AC', href: '/admin/offering', icon: Megaphone },
+  { name: '\uBC30\uB2F9 \uAD00\uB9AC', href: '/admin/dividend', icon: PieChart },
+  { name: '\uBE14\uB85D\uCCB4\uC778', href: '/admin/blockchain', icon: Boxes },
 ];
 
 export function AdminSidebar() {
@@ -38,7 +41,10 @@ export function AdminSidebar() {
   const searchParams = useSearchParams();
   const currentTab = searchParams?.get('tab') || 'system';
   const infraParam = searchParams?.get('infra');
-  const currentInfra = infraParam === 'onprem' || infraParam === 'cloud' ? infraParam : null;
+  const currentInfra =
+    infraParam === 'cloud-system' || infraParam === 'cloud-service' || infraParam === 'onprem'
+      ? infraParam
+      : null;
 
   const isMonitoringLinkActive = (item: NavigationItem) => {
     if (!pathname.startsWith('/admin/monitoring')) return false;
