@@ -113,6 +113,7 @@ export default function ProductManagementPage() {
   const [searchValue, setSearchValue] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const nextCursorRef = useRef<number | null>(null)
   const loadingRef = useRef(false)
@@ -227,6 +228,12 @@ export default function ProductManagementPage() {
     },
     [debouncedSearch],
   )
+
+  useEffect(() => {
+    if (!toastMessage) return
+    const timer = setTimeout(() => setToastMessage(null), 2400)
+    return () => clearTimeout(timer)
+  }, [toastMessage])
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -369,7 +376,19 @@ export default function ProductManagementPage() {
         }
         throw new Error(message)
       }
-      setOfferings((prev) => prev.filter((item) => item.productId !== productId))
+      setOfferings((prev) =>
+        sortOfferings(
+          prev.map((item) =>
+            item.productId === productId
+              ? {
+                  ...item,
+                  status: "TRADE",
+                  progressRate: 100,
+                }
+              : item,
+          ),
+        ),
+      )
       setMarketItems((prev) => [
         ...prev,
         {
@@ -385,6 +404,7 @@ export default function ProductManagementPage() {
             : "-",
         },
       ])
+      setToastMessage("2차거래 전환이 완료되었습니다.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "2차거래로 전환에 실패했습니다.")
     }
@@ -700,6 +720,12 @@ export default function ProductManagementPage() {
           )}
         </div>
       </div>
+
+      {toastMessage ? (
+        <div className="fixed bottom-6 right-6 rounded-md bg-black/80 px-4 py-2 text-sm text-white shadow-lg">
+          {toastMessage}
+        </div>
+      ) : null}
     </div>
   )
 }

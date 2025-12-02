@@ -84,7 +84,7 @@ export function AdminSidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
+                'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 item.nested && 'pl-10 text-xs font-medium',
                 active
                   ? 'bg-[#24355c] text-white ring-1 ring-[#4f7dfa]/60 ring-inset'
