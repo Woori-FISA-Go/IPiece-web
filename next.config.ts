@@ -47,6 +47,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "github.com",
       },
+      {
+        protocol: "https",
+        hostname: "d17c83y0vaf42t.cloudfront.net",
+      },
       ...(apiHost && apiProtocol
         ? [
             {

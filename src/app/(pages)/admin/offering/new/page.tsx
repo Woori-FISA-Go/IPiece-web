@@ -29,7 +29,6 @@ type FormState = {
   tokenQuantity: string
   issuePrice: string
   issueDate: string
-  dividendRatio: string
   offeringPrice: string
   offeringAmount: string
   offeringStartDate: string
@@ -54,7 +53,6 @@ export default function NewContestPage() {
     tokenQuantity: '',
     issuePrice: '',
     issueDate: '',
-    dividendRatio: '',
     offeringPrice: '',
     offeringAmount: '',
     offeringStartDate: '',
@@ -170,6 +168,7 @@ export default function NewContestPage() {
         token_name: formState.tokenName,
         token_symbol: formState.tokenSymbol,
         token_contract_address: formState.tokenContractAddress || null,
+        dividend_ratio: 1, // 100%
         offering: {
           offering_amount: Number(formState.offeringAmount),
           offering_price: Number(formState.offeringPrice),

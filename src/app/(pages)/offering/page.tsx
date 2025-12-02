@@ -170,8 +170,20 @@ export default function OfferingPage() {
   const filteredItems = useMemo(() => {
     const showAll =
       selectedStatuses.length === 0 || selectedStatuses.length === STATUS_OPTIONS.length;
-    if (showAll) return items;
-    return items.filter((item) => selectedStatuses.includes(item.status));
+    const list = showAll ? items : items.filter((item) => selectedStatuses.includes(item.status));
+    return [...list].sort((a, b) => {
+      const rank = (status: OfferingStatus) => {
+        if (status === 'UPCOMING') return 0;
+        if (status === 'ONGOING') return 1;
+        return 2; // ENDED
+      };
+      const ra = rank(a.status);
+      const rb = rank(b.status);
+      if (ra !== rb) return ra - rb;
+      const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return bStart - aStart;
+    });
   }, [items, selectedStatuses]);
 
   const displayCount = useMemo(() => {
