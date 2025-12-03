@@ -85,6 +85,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
   const dragRef = useRef<{
     active: boolean;
     pointerId: number | null;
@@ -149,6 +150,10 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   useEffect(() => {
     setPeriod(DEFAULT_PERIOD);
   }, [productId]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayPeriod = period;
 
@@ -233,10 +238,10 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
           if (isNewDay) {
             dateLabel = `${labelDate.getMonth() + 1}/${labelDate.getDate()}`;
             lastDateStr = dateStr;
-            timeLabel = '';
           }
         }
-        timeLabel = candle ? formatTimestampLabel(candle.timestamp, '1D') : '';
+        // 1D 구간에서는 시간 없이 날짜만 표시
+        timeLabel = '';
       } else {
         timeLabel = candle ? formatTimestampLabel(candle.timestamp, displayPeriod) : '';
       }
@@ -558,6 +563,10 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
     [endDrag],
   );
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <Card className="flex h-full flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
       <CardContent className="flex h-full flex-col gap-6 p-6 pt-8 pb-10">
@@ -706,7 +715,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                     </div>
                   )}
                 </>
-              )}
+      )}
 
               <div className="pointer-events-none absolute bottom-[24px] left-0 right-0 px-8 text-[10px] text-gray-500">
                 {axisLabels.map(({ dateLabel, timeLabel, index }) => (
@@ -716,7 +725,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                     style={{ left: `${xScale(index)}px` }}
                   >
                     {dateLabel ? (
-                      <div className="text-gray-600">{dateLabel}</div>
+                      <div className="text-gray-800">{dateLabel}</div>
                     ) : (
                       <div>{timeLabel}</div>
                     )}

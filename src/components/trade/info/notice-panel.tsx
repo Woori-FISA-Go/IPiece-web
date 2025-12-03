@@ -69,7 +69,7 @@ export function NoticePanel({ notices }: NoticePanelProps = {}) {
   let rendered = 0;
 
   return (
-    <Card className="flex h-[360px] flex-col rounded-2xl border shadow-sm overflow-hidden">
+    <Card className="flex h-[320px] flex-col rounded-2xl border shadow-sm overflow-hidden">
       <CardContent className="flex flex-1 flex-col p-6 pb-4 overflow-hidden">
         <h3 className="text-[15px] font-semibold text-[#111827] mb-4">공시</h3>
         <div

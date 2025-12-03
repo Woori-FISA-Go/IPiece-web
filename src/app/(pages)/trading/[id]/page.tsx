@@ -45,6 +45,7 @@ type ProductDetails = {
   token_standard: string;
   exchange_listing: string;
   description: string;
+  product_page_image?: string;
   detail_image?: string;
   detail_url?: string;
   dividends?: {
@@ -396,6 +397,7 @@ export default function TradingDetailPage() {
       listing: productDetails.exchange_listing ?? '',
       summary: productDetails.description ?? '',
       heroImage:
+        productDetails.product_page_image ||
         productDetails.detail_image ||
         productDetails.detail_url ||
         productInfo.thumbnail_img,
