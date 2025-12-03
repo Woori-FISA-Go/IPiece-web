@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import profilePicture from "@/assets/images/profile-picture.png"
+import profilePicture from "@/assets/images/profile.png"
 import { clearTokens } from "@/lib/auth"
 import { apiFetch } from "@/lib/api-client"
 import type { MyHomeResponse } from "./types"
