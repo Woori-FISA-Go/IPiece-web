@@ -33,4 +33,5 @@ export const SAMPLE_TRADING: Item[] = [
 export const SAMPLE_BANNERS: Banner[] = [
   { id: 'b1', alt: '배너 1', imageUrl: '' },
   { id: 'b2', alt: '배너 2', imageUrl: '' },
+  { id: 'b3', alt: '배너 3', imageUrl: '' },
 ]
