@@ -34,6 +34,18 @@ const formatTimestampLabel = (timestamp: string, period: Period) => {
   return `${month}/${day}`;
 };
 
+const formatDateTimeLabel = (timestamp: string) => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  const y = date.getFullYear();
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  const d = date.getDate().toString().padStart(2, '0');
+  const hh = date.getHours().toString().padStart(2, '0');
+  const mm = date.getMinutes().toString().padStart(2, '0');
+  // 두 칸 공백으로 날짜/시간 구분
+  return `${y}.${m}.${d}  ${hh}:${mm}`;
+};
+
 export type TradeTickMessage = {
   productId: number;
   tradePrice: number;
@@ -73,6 +85,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
   const dragRef = useRef<{
     active: boolean;
     pointerId: number | null;
@@ -110,9 +123,37 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   const chartBaseline = padding.top + chartHeight;
   const gradientId = useId();
 
+  const getSmoothLineSegments = (points: { x: number; y: number }[]) => {
+    if (points.length === 0) return { move: '', segments: [] };
+    if (points.length === 1) {
+      const { x, y } = points[0];
+      return { move: `M ${x} ${y}`, segments: [] };
+    }
+    const move = `M ${points[0].x} ${points[0].y}`;
+    const segments: string[] = [];
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const p0 = i > 0 ? points[i - 1] : points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = i !== points.length - 2 ? points[i + 2] : p2;
+
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+
+      segments.push(`C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`);
+    }
+    return { move, segments };
+  };
+
   useEffect(() => {
     setPeriod(DEFAULT_PERIOD);
   }, [productId]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayPeriod = period;
 
@@ -160,52 +201,82 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
       x: xScale(index),
       y: yScale(candle.c),
     }));
+    const { move, segments } = getSmoothLineSegments(points);
+    const line = [move, ...segments].join(' ');
     const first = points[0];
     const last = points[points.length - 1];
-    const areaCommands = [
+    const area = [
       `M ${first.x} ${chartBaseline}`,
-      `L ${first.x} ${first.y}`,
-      ...points.slice(1).map((point) => `L ${point.x} ${point.y}`),
+      move,
+      ...segments,
       `L ${last.x} ${chartBaseline}`,
       `L ${first.x} ${chartBaseline}`,
       'Z',
-    ];
-    const lineCommands = [
-      `M ${first.x} ${first.y}`,
-      ...points.slice(1).map((point) => `L ${point.x} ${point.y}`),
-    ];
+    ].join(' ');
     return {
-      areaPath: areaCommands.join(' '),
-      linePath: lineCommands.join(' '),
+      areaPath: area,
+      linePath: line,
     };
   }, [chartBaseline, visibleData, xScale, yScale]);
 
   const axisLabels = useMemo(() => {
     if (visibleData.length === 0) return [];
     const count = Math.min(5, visibleData.length);
-    if (count === 1) {
-      return [
-        {
-          label: formatTimestampLabel(
-            visibleData[0].timestamp,
-            displayPeriod,
-          ),
-          index: 0,
-        },
-      ];
-    }
-    const step = (visibleData.length - 1) / (count - 1);
-    return Array.from({ length: count }, (_, i) => {
-      const idx = Math.round(i * step);
+    let lastDateStr: string | null = null;
+
+    const buildLabel = (idx: number) => {
       const candle = visibleData[idx];
+      const ts = candle?.timestamp;
+      const labelDate = ts ? new Date(ts) : null;
+      let dateLabel: string | undefined;
+      let timeLabel = '';
+
+      if (displayPeriod === '1D') {
+        if (labelDate && !Number.isNaN(labelDate.getTime())) {
+          const dateStr = `${labelDate.getFullYear()}-${labelDate.getMonth()}-${labelDate.getDate()}`;
+          const isNewDay = lastDateStr !== dateStr;
+          if (isNewDay) {
+            dateLabel = `${labelDate.getMonth() + 1}/${labelDate.getDate()}`;
+            lastDateStr = dateStr;
+          }
+        }
+        // 1D 구간에서는 시간 없이 날짜만 표시
+        timeLabel = '';
+      } else {
+        timeLabel = candle ? formatTimestampLabel(candle.timestamp, displayPeriod) : '';
+      }
+
       return {
-        label: candle
-          ? formatTimestampLabel(candle.timestamp, displayPeriod)
-          : '',
+        dateLabel,
+        timeLabel,
         index: idx,
       };
-    });
+    };
+
+    if (count === 1) {
+      return [buildLabel(0)];
+    }
+    const step = (visibleData.length - 1) / (count - 1);
+    return Array.from({ length: count }, (_, i) => buildLabel(Math.round(i * step)));
   }, [visibleData, displayPeriod]);
+
+  const dateMarkers = useMemo(() => {
+    if (visibleData.length === 0) return [];
+    const markers: { index: number; label: string }[] = [];
+    for (let i = 0; i < visibleData.length; i += 1) {
+      const current = new Date(visibleData[i].timestamp);
+      const prev = i > 0 ? new Date(visibleData[i - 1].timestamp) : null;
+      const currentDay = `${current.getFullYear()}-${current.getMonth() + 1}-${current.getDate()}`;
+      const prevDay =
+        prev && !Number.isNaN(prev.getTime())
+          ? `${prev.getFullYear()}-${prev.getMonth() + 1}-${prev.getDate()}`
+          : null;
+      if (i === 0 || currentDay !== prevDay) {
+        markers.push({ index: i, label: `${current.getMonth() + 1}/${current.getDate()}` });
+      }
+    }
+    return markers;
+  }, [visibleData]);
 
   const yTicks = useMemo(() => {
     if (!hasData) return [0];
@@ -475,8 +546,13 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
         e.currentTarget.getBoundingClientRect();
       const scrollLeft = chartScrollRef.current?.scrollLeft ?? 0;
       updateHover(e.clientX, e.clientY, rect, scrollLeft);
+
+      const scroller = chartScrollRef.current;
+      if (scroller && scroller.scrollLeft <= 10 && hasMore && !isFetchingMore) {
+        fetchChart({ cursor: nextCursor, append: true }).catch(() => null);
+      }
     },
-    [endDrag, updateHover],
+    [endDrag, updateHover, hasMore, isFetchingMore, fetchChart, nextCursor],
   );
 
   const handlePointerLeave = useCallback(
@@ -486,6 +562,10 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
     },
     [endDrag],
   );
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <Card className="flex h-full flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
@@ -580,17 +660,6 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
-                    {visibleData.map((candle, index) => (
-                      <circle
-                        key={`point-${candle.timestamp}-${index}`}
-                        cx={xScale(index)}
-                        cy={yScale(candle.c)}
-                        r={4}
-                        fill="#2563EB"
-                        stroke="#ffffff"
-                        strokeWidth={1}
-                      />
-                    ))}
                   </>
                 )}
               </svg>
@@ -611,12 +680,11 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                   <div
                     className="absolute"
                     style={{
-                      left: `${hoveredPoint.x - 5}px`,
-                      top: `${hoveredPoint.y - 5}px`,
-                      width: '10px',
-                      height: '10px',
+                      left: `${hoveredPoint.x - 4}px`,
+                      top: `${hoveredPoint.y - 4}px`,
+                      width: '8px',
+                      height: '8px',
                       backgroundColor: '#2563EB',
-                      border: '1.25px solid #ffffff',
                       borderRadius: '9999px',
                       pointerEvents: 'none',
                     }}
@@ -624,10 +692,10 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                   <div
                     className="absolute"
                     style={{
-                      left: `${hoveredPoint.x - 3}px`,
-                      top: `${hoveredPoint.y - 3}px`,
-                      width: '6px',
-                      height: '6px',
+                      left: `${hoveredPoint.x - 2}px`,
+                      top: `${hoveredPoint.y - 2}px`,
+                      width: '4px',
+                      height: '4px',
                       backgroundColor: '#ffffff',
                       borderRadius: '9999px',
                       pointerEvents: 'none',
@@ -639,28 +707,28 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                       style={tooltipStyle}
                     >
                       <div className="font-medium">
-                        {formatTimestampLabel(
-                          hoveredPoint.candle.timestamp,
-                          displayPeriod,
-                        )}
+                        {formatDateTimeLabel(hoveredPoint.candle.timestamp)}
                       </div>
-                      <div>거래량: {hoveredPoint.candle.v}</div>
                       <div className="font-semibold">
-                        {hoveredPoint.candle.c.toLocaleString('ko-KR')} ₩
+                        {hoveredPoint.candle.c.toLocaleString('ko-KR')}원
                       </div>
                     </div>
                   )}
                 </>
-              )}
+      )}
 
-              <div className="pointer-events-none absolute bottom-[18px] left-0 right-0 px-8 text-[10px] text-gray-500">
-                {axisLabels.map(({ label, index }) => (
+              <div className="pointer-events-none absolute bottom-[24px] left-0 right-0 px-8 text-[10px] text-gray-500">
+                {axisLabels.map(({ dateLabel, timeLabel, index }) => (
                   <span
-                    key={`${label}-${index}`}
-                    className="absolute -translate-x-1/2 whitespace-nowrap"
+                    key={`${timeLabel}-${index}`}
+                    className="absolute -translate-x-1/2 whitespace-nowrap text-center"
                     style={{ left: `${xScale(index)}px` }}
                   >
-                    {label}
+                    {dateLabel ? (
+                      <div className="text-gray-800">{dateLabel}</div>
+                    ) : (
+                      <div>{timeLabel}</div>
+                    )}
                   </span>
                 ))}
               </div>
