@@ -1,15 +1,18 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "../components/ui/dialog"
 import { MediaUploadModal } from "../components/media-upload-modal"
 import Logo from "../../main/assets/Logo.png"
 import FolderIcon from "../assets/folder_icon.png"
+import type { LottieRefCurrentProps } from "lottie-react"
 import { apiFetch } from "@/lib/api-client"
 
 const inputFieldClass =
@@ -17,6 +20,8 @@ const inputFieldClass =
 
 const labelClass = "block text-[12px] font-semibold mb-2"
 const helperTextClass = "text-[12px]"
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false })
+const CELEBRATION_PATH = "/Users/joeun/Desktop/woori/IPiece-web/src/assets/lottie/Celebration.lottie"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -41,6 +46,8 @@ export default function SignupPage() {
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const lottieRef = useRef<LottieRefCurrentProps>(null)
 
   const handleCheckUsername = async () => {
     const username = formData.username.trim()
@@ -180,14 +187,24 @@ export default function SignupPage() {
         throw new Error(message || "회원가입에 실패했습니다.")
       }
 
-      alert("회원가입 완료")
-      router.push("/auth/login")
+      setShowSuccessModal(true)
     } catch (err) {
       console.error("Signup failed", err)
       setSubmitError(err instanceof Error ? err.message : "회원가입에 실패했습니다.")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  useEffect(() => {
+    if (showSuccessModal && lottieRef.current?.setSpeed) {
+      lottieRef.current.setSpeed(0.7)
+    }
+  }, [showSuccessModal])
+
+  const handleCloseSuccess = () => {
+    setShowSuccessModal(false)
+    router.push("/auth/login")
   }
 
   return (
@@ -368,6 +385,27 @@ export default function SignupPage() {
           setIsModalOpen(false)
         }}
       />
+
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="w-full max-w-sm gap-0 bg-white p-0 rounded-2xl">
+          <DialogTitle className="sr-only">회원가입 완료</DialogTitle>
+          <div className="flex flex-col items-center gap-4 px-6 py-8">
+            <div className="h-48 w-48">
+              <Lottie lottieRef={lottieRef} path={CELEBRATION_PATH} loop={false} autoplay />
+            </div>
+            <div className="space-y-1 text-center">
+              <h3 className="text-lg font-semibold text-[#0f172a]">회원가입에 성공했습니다.</h3>
+              <p className="text-sm text-[#6b7280]">로그인 페이지로 이동합니다.</p>
+            </div>
+            <Button
+              className="h-11 w-full rounded-lg bg-[#3386E5] hover:bg-[#2a75d0]"
+              onClick={handleCloseSuccess}
+            >
+              로그인 하러가기
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
