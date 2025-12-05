@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Fragment } from 'react';
 import { Plus, Calendar, TrendingUp, CheckCircle } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/hooks/use-toast';
 
 type DividendStatus = 'SCHEDULED' | 'EXECUTED' | 'CANCELLED' | 'COMPLETED';
 
@@ -104,6 +105,8 @@ export default function DividendPage() {
   const [activeTab, setActiveTab] = useState<'declarations' | 'results'>(
     'declarations',
   );
+  const { toast } = useToast();
+  const [productNames, setProductNames] = useState<Record<number, string>>({});
 
   // 한 달 범위 계산 및 필터링
   const now = new Date();
@@ -196,6 +199,7 @@ export default function DividendPage() {
         ? data.items.map((item) => normalizeDividend(item))
         : MOCK_DIVIDENDS;
       setDividends(normalized);
+      populateProductNames(normalized);
       const completed = normalized
         .filter((item) => item.status === 'COMPLETED' && item.id)
         .map((item) => item.id ?? 0)
@@ -207,6 +211,60 @@ export default function DividendPage() {
       setDividends(MOCK_DIVIDENDS);
       setCompletedDividendIds([]);
     }
+  };
+
+  const populateProductNames = async (list: Dividend[]) => {
+    const missingIds = Array.from(
+      new Set(
+        list
+          .filter(
+            (d) =>
+              d.product_id &&
+              !productNames[d.product_id] &&
+              !d.product_name,
+          )
+          .map((d) => d.product_id),
+      ),
+    );
+    if (missingIds.length === 0) return;
+
+    const entries = await Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const res = await apiFetch(`/v1/market/${id}/details`);
+          if (!res.ok) return null;
+          const data = (await res.json()) as {
+            info?: { product_name?: string };
+          };
+          const name = data.info?.product_name;
+          return name ? [id, name] : null;
+        } catch (err) {
+          console.warn('Failed to fetch product name', id, err);
+          return null;
+        }
+      }),
+    );
+
+    const validEntries = entries.filter(Boolean) as Array<[number, string]>;
+    if (validEntries.length === 0) return;
+
+    setProductNames((prev) => {
+      const next = { ...prev };
+      validEntries.forEach(([id, name]) => {
+        next[id] = name;
+      });
+      return next;
+    });
+
+    setDividends((prev) =>
+      prev.map((d) => {
+        const matched = validEntries.find(([id]) => id === d.product_id);
+        if (matched && !d.product_name) {
+          return { ...d, product_name: matched[1] };
+        }
+        return d;
+      }),
+    );
   };
 
   const fetchResults = async (dividendIds: number[]) => {
@@ -259,11 +317,27 @@ export default function DividendPage() {
         },
       );
       if (response.ok) {
-        alert('배당이 실행되었습니다.');
+        toast({
+          title: '배당 실행 완료',
+          description: '배당이 실행되었습니다.',
+          duration: 3000,
+        });
         fetchDividends();
+      } else {
+        toast({
+          title: '배당 실행 실패',
+          description: `status: ${response.status}`,
+          variant: 'destructive',
+          duration: 3500,
+        });
       }
     } catch (error) {
-      alert('배당 실행에 실패했습니다.');
+      toast({
+        title: '배당 실행 실패',
+        description: '배당 실행 중 오류가 발생했습니다.',
+        variant: 'destructive',
+        duration: 3500,
+      });
     }
   };
 
@@ -415,7 +489,7 @@ export default function DividendPage() {
                       <tr key={rowKey} className="border-b hover:bg-gray-50">
                         <td className="p-4">{displayId}</td>
                         <td className="p-4">
-                          {dividend.product_name || `상품 #${dividend.product_id}`}
+                          {dividend.product_name || '상품명 미확인'}
                         </td>
                         <td className="p-4">{getStatusBadge(dividend.status)}</td>
                         <td className="p-4">
@@ -595,7 +669,9 @@ export default function DividendPage() {
               }
               return [saved, ...prev];
             });
+            populateProductNames([saved]);
           }}
+          toastFn={toast}
         />
       )}
     </div>
@@ -606,9 +682,10 @@ interface DividendModalProps {
   dividend: Dividend | null;
   onClose: () => void;
   onSave: (saved: Dividend) => void;
+  toastFn: ReturnType<typeof useToast>['toast'];
 }
 
-function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
+function DividendModal({ dividend, onClose, onSave, toastFn }: DividendModalProps) {
   const [formData, setFormData] = useState({
     product_id: dividend?.product_id || 0,
     record_date: dividend?.record_date || '',
@@ -621,11 +698,19 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
     e.preventDefault();
 
     if (!formData.product_id) {
-      alert('상품 ID를 입력해주세요.');
+      toastFn({
+        title: '입력이 필요합니다',
+        description: '상품 ID를 입력해주세요.',
+        variant: 'destructive',
+      });
       return;
     }
     if (!formData.total_amount) {
-      alert('배당 총액을 입력해주세요.');
+      toastFn({
+        title: '입력이 필요합니다',
+        description: '배당 총액을 입력해주세요.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -653,7 +738,13 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
           total_amount: formData.total_amount,
           memo: formData.memo,
         };
-        alert(dividend ? '배당이 수정되었습니다.' : '배당이 생성되었습니다.');
+        toastFn({
+          title: dividend ? '배당 선언 수정 완료' : '배당 선언 생성 완료',
+          description: dividend
+            ? '배당 선언이 수정되었습니다.'
+            : '배당 선언이 생성되었습니다.',
+          duration: 3200,
+        });
         onSave(normalizeDividend(saved ?? fallback));
         return;
       }
@@ -665,9 +756,19 @@ function DividendModal({ dividend, onClose, onSave }: DividendModalProps) {
       } catch {
         // ignore parse error, fall back to default message
       }
-      alert(`${message} (status: ${response.status})`);
+      toastFn({
+        title: '배당 저장 실패',
+        description: `${message} (status: ${response.status})`,
+        variant: 'destructive',
+        duration: 3500,
+      });
     } catch (error) {
-      alert('저장에 실패했습니다.');
+      toastFn({
+        title: '배당 저장 실패',
+        description: '저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+        duration: 3500,
+      });
     }
   };
 

@@ -85,7 +85,6 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<HoverPoint | null>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
   const dragRef = useRef<{
     active: boolean;
     pointerId: number | null;
@@ -150,10 +149,6 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
   useEffect(() => {
     setPeriod(DEFAULT_PERIOD);
   }, [productId]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const displayPeriod = period;
 
@@ -563,10 +558,6 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
     [endDrag],
   );
 
-  if (!mounted) {
-    return null;
-  }
-
   return (
     <Card className="flex h-full flex-col rounded-2xl shadow-sm transition-shadow hover:shadow-md">
       <CardContent className="flex h-full flex-col gap-6 p-6 pt-8 pb-10">
@@ -717,7 +708,7 @@ export function TradingChart({ productId, liveTick }: TradingChartProps) {
                 </>
       )}
 
-              <div className="pointer-events-none absolute bottom-[24px] left-0 right-0 px-8 text-[10px] text-gray-500">
+              <div className="pointer-events-none absolute bottom-[18px] left-0 right-0 px-8 text-[10px] text-gray-500">
                 {axisLabels.map(({ dateLabel, timeLabel, index }) => (
                   <span
                     key={`${timeLabel}-${index}`}

@@ -291,11 +291,29 @@ export default function TradingDetailPage() {
   }, []);
 
   const handleProductPriceUpdate = useCallback((payload: unknown) => {
+    const maybeObj = payload as Record<string, unknown> | number | undefined;
     const price =
-      typeof payload === 'number' ? payload : Number(payload ?? NaN);
+      typeof maybeObj === 'number'
+        ? maybeObj
+        : Number((maybeObj as Record<string, unknown>)?.price ?? NaN);
+    const rate =
+      typeof maybeObj === 'number'
+        ? undefined
+        : Number(
+            (maybeObj as Record<string, unknown>)?.price_change ??
+              (maybeObj as Record<string, unknown>)?.change_rate ??
+              NaN,
+          );
+
     if (Number.isNaN(price)) return;
     setProductInfo((prev) =>
-      prev ? { ...prev, current_price: price } : prev,
+      prev
+        ? {
+            ...prev,
+            current_price: price,
+            change_rate: Number.isNaN(rate) ? prev.change_rate : rate,
+          }
+        : prev,
     );
   }, []);
 
